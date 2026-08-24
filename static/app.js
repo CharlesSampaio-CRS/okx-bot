@@ -7614,22 +7614,35 @@ async function runCopilotAction(a, fromPlan = false) {
   if (type === "order" && a.payload) {
     const p = a.payload;
     copilotPlanArmed = !!fromPlan;
-    const inst = p.inst_id || p.inst_id || "";
-    goTradeToken(inst);
+    const inst = p.inst_id || "";
+    const side = p.side || "buy";
+    const ordType = p.ord_type || "market";
+    const tgt = p.tgt_ccy || (side === "buy" ? "quote_ccy" : "base_ccy");
+    // Setar orderIntent ANTES de goTradeToken para que loadOrders use os valores corretos
+    const quote = (inst.split("-")[1] || "USDT").toUpperCase();
+    orderIntent = { inst: inst.toUpperCase(), side, quote, icon: "", iconAlt: "", type: ordType, tgt };
+    // Navegar para a página de ordens sem resetar o intent
+    let pair = String(inst || "").toUpperCase();
+    if (pair && !pair.includes("-")) pair = `${pair}-USDT`;
+    orderQuote = quote;
+    localStorage.setItem("okx_order_quote", quote);
+    localStorage.setItem("okx_order_inst", pair);
+    orderContext = null;
+    orderContextInst = null;
+    orderLoadError = null;
+    location.hash = "#/orders";
     try {
       await refreshOrderContext(inst);
       setOrderFormLoading(false);
-      // Setar tipo de ordem ANTES do side para que syncOrderForm funcione correto
       const form = $("order-form");
       if (form) {
-        form.ord_type.value = p.ord_type || "market";
+        form.ord_type.value = ordType;
         form.ord_type.dispatchEvent(new Event("change"));
         if (p.px != null && form.px) form.px.value = p.px;
-        form.tgt_ccy.value = p.tgt_ccy || (p.side === "buy" ? "quote_ccy" : "base_ccy");
+        form.tgt_ccy.value = tgt;
         form.sz.value = p.sz;
       }
-      // Setar side POR ÚLTIMO — syncOrderForm dentro dele vai usar ord_type já correto
-      setOrderSide(p.side);
+      setOrderSide(side);
       syncOrderForm();
       openOrderModal(buildOrderPayload());
     } catch (err) {
