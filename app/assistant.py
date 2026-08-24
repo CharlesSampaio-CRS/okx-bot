@@ -227,7 +227,7 @@ def _looks_like_advise(t: str) -> bool:
     if re.search(r"\b(ordem|limite|limit)\b", t) and not re.search(r"\bqual\b", t):
         return False
     # "compensar perda" + token específico = ação, não conselho
-    if re.search(r"\b(compens|recuper|zerar)\b", t) and _guess_token(t):
+    if re.search(r"\b(compens\w*|recuper\w*|zerar)\b", t) and _guess_token(t):
         return False
     # "abrir/criar ordem" = ação
     if re.search(r"\b(abrir|abra|crie|cria|criar|monte|quero)\b.*\bordem\b", t):
@@ -359,9 +359,9 @@ def parse_local(text: str) -> dict[str, Any]:
             intent = "sell"
         elif re.search(r"\b(compr(?:e|ar)|compra|buy|aportar)\b", t):
             intent = "buy"
-        elif re.search(r"\b(ordem|limite|limit)\b.*\b(compens|recuper|zerar|perda|preju[ií]zo)\b", t):
+        elif re.search(r"\b(ordem|limite|limit)\b.*\b(compens\w*|recuper\w*|zerar|perda|preju[ií]zo)\b", t):
             intent = "sell"
-        elif re.search(r"\b(compens|recuper|zerar)\b.*\b(perda|preju[ií]zo|pnl|upl)\b", t) and _guess_token(text):
+        elif re.search(r"\b(compens\w*|recuper\w*|zerar)\b.*\b(perda|preju[ií]zo|pnl|upl)\b", t) and _guess_token(text):
             intent = "sell"
         elif re.search(
             r"\b(ordem|limite|limit)\b|\b(abrir|abra|crie|cria|criar|monte)\b.{0,20}\bordem\b",
@@ -1058,6 +1058,15 @@ async def handle(
     merged_draft = _merge_draft(incoming_draft, parsed.get("draft") if isinstance(parsed.get("draft"), dict) else None, text)
     parsed["draft"] = merged_draft
     tnorm = _norm(text)
+
+    # Verificar histórico: se conversa anterior pediu ação e agora user diz só o token
+    _hist_context = ""
+    for h in (history or [])[-4:]:
+        _hist_context += " " + _norm(str(h.get("content") or ""))
+    _hist_wants_action = bool(re.search(
+        r"\b(compens\w*|recuper\w*|zerar|ordem|vender?|venda|comprar?|compra)\b", _hist_context
+    ))
+
     loc_intent = str(local.get("intent") or "unknown")
     if loc_intent in {"buy", "sell", "plan", "create_bot"}:
         parsed["intent"] = loc_intent
@@ -1076,9 +1085,15 @@ async def handle(
         parsed["intent"] = "sell" if re.search(r"\b(vender?|venda|sell)\b", tnorm) else "buy"
     # "compensar perda" + token = sell (não advise)
     if parsed.get("intent") in {"advise", "unknown"} and parsed.get("token") and re.search(
-        r"\b(compens|recuper|zerar|perda|ordem)\b", tnorm
+        r"\b(compens\w*|recuper\w*|zerar|perda|ordem)\b", tnorm
     ):
         parsed["intent"] = "sell"
+    # Se o histórico pedia ação e o user agora diz só um token → manter intent do histórico
+    if parsed.get("intent") in {"advise", "unknown", "help"} and parsed.get("token") and _hist_wants_action:
+        if re.search(r"\b(compens\w*|recuper\w*|zerar|perda|vender?|venda)\b", _hist_context):
+            parsed["intent"] = "sell"
+        elif re.search(r"\b(comprar?|compra|buy)\b", _hist_context):
+            parsed["intent"] = "buy"
     intent = str(parsed.get("intent") or "unknown")
     if not llm:
         mode = "local"
