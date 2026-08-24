@@ -1455,8 +1455,8 @@ def save_hunter_settings(patch: dict[str, Any]) -> dict[str, Any]:
         cur["budget_ccy"] = "BRL"
     cur.pop("budget_brl", None)
     cur["blacklist"] = [str(x).upper() for x in (cur.get("blacklist") or []) if str(x).strip()]
-    # Caçador é só radar — sem automação
-    cur["enabled"] = False
+    # Permitir habilitar o auto-scan do radar
+    cur["enabled"] = bool(cur.get("enabled"))
     cur["auto_rotate"] = False
     vd = int(cur.get("validate_days") or 90)
     cur["horizon"] = "all"

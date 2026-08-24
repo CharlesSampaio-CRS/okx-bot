@@ -5369,7 +5369,7 @@ function orderRows(orders, open) {
     const cancel = open
       ? `<td><button class="btn btn-ico btn-ghost" data-cancel="${o.ord_id}" data-inst="${o.inst_id || ""}" data-side="${o.side || ""}" data-type="${o.ord_type || ""}" data-sz="${o.sz ?? ""}" data-px="${o.px ?? ""}" data-value="${o.value ?? ""}" data-pnl="${pnlVal ?? ""}" data-quote="${ccy}" data-fill="${o.fill_sz ?? ""}" data-pct="${pct ?? ""}" type="button" title="Cancelar" aria-label="Cancelar">${ICO.x}</button></td>`
       : `<td>${ORDER_STATE[o.state] || o.state || "—"}</td>`;
-    return `<tr>
+    return `<tr class="order-row" data-ord-id="${o.ord_id || ""}" data-inst="${o.inst_id || ""}" style="cursor:pointer">
       <td>${fmtTs(o.created_at || o.updated_at)}</td>
       <td>${originCell(o)}</td>
       <td>${orderPairCell(o)}</td>
@@ -6934,21 +6934,75 @@ $("order-form").addEventListener("submit", async (ev) => {
 
 $("orders-open").addEventListener("click", (ev) => {
   const btn = ev.target.closest("button[data-cancel]");
-  if (!btn) return;
-  openCancelModal({
-    ord_id: btn.dataset.cancel,
-    inst_id: btn.dataset.inst,
-    side: btn.dataset.side,
-    ord_type: btn.dataset.type,
-    sz: btn.dataset.sz,
-    px: btn.dataset.px,
-    value: btn.dataset.value,
-    pnl: btn.dataset.pnl,
-    quote: btn.dataset.quote,
-    fill: btn.dataset.fill,
-    pct: btn.dataset.pct,
-  });
+  if (btn) {
+    openCancelModal({
+      ord_id: btn.dataset.cancel,
+      inst_id: btn.dataset.inst,
+      side: btn.dataset.side,
+      ord_type: btn.dataset.type,
+      sz: btn.dataset.sz,
+      px: btn.dataset.px,
+      value: btn.dataset.value,
+      pnl: btn.dataset.pnl,
+      quote: btn.dataset.quote,
+      fill: btn.dataset.fill,
+      pct: btn.dataset.pct,
+    });
+    return;
+  }
+  // Click na linha para ver detalhes
+  const row = ev.target.closest("tr.order-row[data-ord-id]");
+  if (row && row.dataset.ordId) openOrderDetail(row.dataset.ordId, row.dataset.inst);
 });
+
+// Histórico: click na linha para detalhes
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("#orders-history")) return;
+  const row = ev.target.closest("tr.order-row[data-ord-id]");
+  if (row && row.dataset.ordId) openOrderDetail(row.dataset.ordId, row.dataset.inst);
+});
+
+async function openOrderDetail(ordId, instId) {
+  if (!ordId) return;
+  try {
+    const qs = instId ? `?instId=${encodeURIComponent(instId)}` : "";
+    const res = await api(`/api/orders/${encodeURIComponent(ordId)}${qs}`);
+    const o = res.order || {};
+    const side = o.side === "buy" ? "Compra" : "Venda";
+    const quote = o.quote || (o.inst_id || "").split("-")[1] || "USDT";
+    const base = (o.inst_id || "").split("-")[0] || "TOKEN";
+    const state = ORDER_STATE[o.state] || o.state || "—";
+    const rows = [
+      ["ID", o.ord_id || ordId],
+      ["Par", o.inst_id || "—"],
+      ["Lado", side, o.side],
+      ["Tipo", TYPE_LABEL[o.ord_type] || o.ord_type || "—"],
+      ["Status", state],
+      ["Tamanho", `${fmt(o.sz, 8)} ${o.tgt_ccy === "quote_ccy" ? quote : base}`],
+      ["Preço", o.ord_type === "market" ? "Mercado" : fmt(o.px, 6)],
+      ["Preço médio", o.avg_px ? fmt(o.avg_px, 6) : "—"],
+      ["Executado", o.fill_sz ? `${fmt(o.fill_sz, 8)} ${base}` : "—"],
+      ["Valor", o.value != null ? `${fmt(o.value, 2)} ${quote}` : "—"],
+      ["Taxa", o.fee != null ? `${fmt(Math.abs(Number(o.fee)), 6)} ${o.fee_ccy || quote}` : "—"],
+      ["Criada", o.created_at || "—"],
+      ["Atualizada", o.updated_at || "—"],
+    ];
+    if (o.pnl != null && o.pnl !== "") {
+      const pnl = Number(o.pnl);
+      rows.push(["PnL", `${fmt(pnl, 4)} ${quote}`, pnl > 0 ? "buy" : pnl < 0 ? "sell" : ""]);
+    }
+    if (o.origin_label) rows.push(["Origem", o.origin_label]);
+    openAppModal({
+      title: "Detalhe da ordem",
+      hint: res.cached ? "Dados em cache" : "Dados atualizados da OKX",
+      rows,
+      hideConfirm: true,
+      cancelLabel: "Fechar",
+    });
+  } catch (err) {
+    flash("order-msg", err?.message || "Erro ao buscar detalhes", false);
+  }
+}
 
 $("btn-cancel-all").addEventListener("click", () => {
   if (!lastOpenOrders.length) {

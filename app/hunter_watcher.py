@@ -196,8 +196,31 @@ class HunterWatcher:
         return self._task is not None and not self._task.done()
 
     async def start(self) -> None:
-        # Sem loop de automação — caçador é só radar sob demanda.
-        return
+        if self._task and not self._task.done():
+            return
+        self._stop.clear()
+        self._task = asyncio.create_task(self._loop(), name="hunter-auto-scan")
+
+    async def _loop(self) -> None:
+        """Loop de auto-scan: verifica se está habilitado e executa a cada scan_interval_min."""
+        while not self._stop.is_set():
+            cfg = db.get_hunter_settings()
+            if not cfg.get("enabled"):
+                # Se desabilitado, espera 30s e checa de novo
+                try:
+                    await asyncio.wait_for(self._stop.wait(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    pass
+                continue
+            interval = max(1.0, float(cfg.get("scan_interval_min") or 10)) * 60.0
+            try:
+                await self.scan_now(force=False)
+            except Exception as exc:
+                self.last_error = str(exc)
+            try:
+                await asyncio.wait_for(self._stop.wait(), timeout=interval)
+            except asyncio.TimeoutError:
+                pass
 
     async def stop(self) -> None:
         self._stop.set()
