@@ -102,16 +102,21 @@ def _llm_system(ctx: str = "", draft: dict[str, Any] | None = None) -> str:
         "QUANDO O USUÁRIO PERGUNTAR 'QUAIS MEUS TOKENS' OU 'MINHA CARTEIRA':\n"
         "intent=wallet. No reply inclua a lista formatada com: Token | Quantidade | Valor USD.\n\n"
         "QUANDO O USUÁRIO PEDIR PARA 'COMPENSAR PERDA' OU 'ZERAR PNL' OU 'VENDER PARA RECUPERAR':\n"
+        "IMPORTANTE: isso é intent=sell, NÃO advise! O usuário quer uma ORDEM.\n"
         "1. Identifique o token no prejuízo (UPL negativo) usando os dados do contexto.\n"
         "2. Calcule o preço de break-even: break_even = custo_medio * (1 + taxa_venda).\n"
         "   Taxa de venda OKX spot ≈ 0.1% (0.001). Então: break_even = custo_medio * 1.001.\n"
         "3. Se o UPL% é -10%, para zerar: preço_venda = custo_medio * 1.001.\n"
         "   Para COMPENSAR 100% da perda vendendo TUDO: preço = custo_medio * 1.001.\n"
         "   Para compensar vendendo PARCIAL: preço precisa ser MAIOR (break_even / fração_vendida).\n"
-        "4. SEMPRE use intent=sell, ord_type=limit, px=break_even calculado, amount_kind=all (ou base).\n"
+        "4. SEMPRE use intent=sell, ord_type=limit, px=break_even calculado, amount_kind=all (ou base), amount=qty total do token.\n"
         "5. No reply, explique: custo médio, preço break-even, e que a ordem limite só executa se o preço subir.\n"
         "6. Se o preço atual está ABAIXO do break-even, avise que a ordem ficará pendente até o preço subir.\n"
         "7. Pergunte se quer vender tudo ou uma parte (e ajuste o preço se parcial).\n\n"
+        "REGRA CRÍTICA: Se o usuário menciona 'ordem', 'compensar', 'recuperar', 'zerar' junto com um token,\n"
+        "NUNCA use intent=advise. Use intent=sell com ord_type=limit e px=break_even.\n"
+        "Se o usuário responde apenas o nome do token (ex: 'de XRP', 'XRP', 'do xrp') após pedir ordem/compensar,\n"
+        "MANTENHA o intent=sell da conversa anterior e use o token informado.\n\n"
         f"Contexto da conta (USE ESSES DADOS NAS RESPOSTAS):\n{ctx or 'indisponível'}\n\n"
         f"Rascunho atual do plano:\n{draft_txt}"
     )
@@ -220,6 +225,12 @@ def _looks_like_advise(t: str) -> bool:
     if re.search(r"\b(criar|cria|crie)\b.*\bbot\b", t):
         return False
     if re.search(r"\b(ordem|limite|limit)\b", t) and not re.search(r"\bqual\b", t):
+        return False
+    # "compensar perda" + token específico = ação, não conselho
+    if re.search(r"\b(compens|recuper|zerar)\b", t) and _guess_token(t):
+        return False
+    # "abrir/criar ordem" = ação
+    if re.search(r"\b(abrir|abra|crie|cria|criar|monte|quero)\b.*\bordem\b", t):
         return False
     return bool(
         re.search(
@@ -348,6 +359,10 @@ def parse_local(text: str) -> dict[str, Any]:
             intent = "sell"
         elif re.search(r"\b(compr(?:e|ar)|compra|buy|aportar)\b", t):
             intent = "buy"
+        elif re.search(r"\b(ordem|limite|limit)\b.*\b(compens|recuper|zerar|perda|preju[ií]zo)\b", t):
+            intent = "sell"
+        elif re.search(r"\b(compens|recuper|zerar)\b.*\b(perda|preju[ií]zo|pnl|upl)\b", t) and _guess_token(text):
+            intent = "sell"
         elif re.search(
             r"\b(ordem|limite|limit)\b|\b(abrir|abra|crie|cria|criar|monte)\b.{0,20}\bordem\b",
             t,
@@ -1059,6 +1074,11 @@ async def handle(
         r"\b(ordem|limite|limit)\b", tnorm
     ) and parsed.get("token"):
         parsed["intent"] = "sell" if re.search(r"\b(vender?|venda|sell)\b", tnorm) else "buy"
+    # "compensar perda" + token = sell (não advise)
+    if parsed.get("intent") in {"advise", "unknown"} and parsed.get("token") and re.search(
+        r"\b(compens|recuper|zerar|perda|ordem)\b", tnorm
+    ):
+        parsed["intent"] = "sell"
     intent = str(parsed.get("intent") or "unknown")
     if not llm:
         mode = "local"
