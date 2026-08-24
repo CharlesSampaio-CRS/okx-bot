@@ -7537,6 +7537,20 @@ function setCopilotOpen(on) {
   if (copilotOpen) $("copilot-input")?.focus();
 }
 
+function resetCopilot() {
+  copilotHistory.length = 0;
+  copilotDraft = null;
+  copilotPlanQueue = [];
+  copilotPlanArmed = false;
+  copilotBusy = false;
+  const log = $("copilot-log");
+  if (log) log.innerHTML = "";
+  appendCopilot(
+    "bot",
+    "Nova conversa iniciada. Me diz o que precisa — posso listar seus tokens, criar ordens, mostrar preços, gerenciar bots, tudo por aqui.",
+  );
+}
+
 function appendCopilot(role, text, actions) {
   const log = $("copilot-log");
   if (!log) return;
@@ -7672,6 +7686,7 @@ async function initCopilot() {
   );
   $("btn-copilot")?.addEventListener("click", () => setCopilotOpen(!copilotOpen));
   $("copilot-close")?.addEventListener("click", () => setCopilotOpen(false));
+  $("copilot-new")?.addEventListener("click", () => resetCopilot());
   $("copilot-form")?.addEventListener("submit", (ev) => {
     ev.preventDefault();
     sendCopilot($("copilot-input")?.value);

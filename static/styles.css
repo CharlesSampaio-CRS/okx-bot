@@ -3859,6 +3859,7 @@ body.nav-collapsed .user-chip .btn { display: none; }
 }
 .copilot-head strong { display: block; font-size: 14px; }
 .copilot-head small { display: block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+.copilot-head-actions { display: flex; align-items: center; gap: 2px; }
 .copilot-log {
   flex: 1;
   overflow: auto;
