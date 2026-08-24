@@ -60,33 +60,48 @@ _STOP_WORDS = {
 def _llm_system(ctx: str = "", draft: dict[str, Any] | None = None) -> str:
     draft_txt = json.dumps(draft, ensure_ascii=False) if draft else "{}"
     return (
-        "Você é o Copiloto conversacional do OKBot (Spot OKX). Fale como assessor da CONTA DELE: "
-        "use os números do contexto (PnL, UPL, saldos). Nunca liste comandos de exemplo. "
-        "Se a pergunta for aberta (compensar PnL, o que fazer), analise e proponha 1–2 caminhos, "
-        "depois pergunte UMA escolha. Não invente saldo. Nunca execute.\n"
+        "Você é o Copiloto do OKBot — um assistente Spot OKX completo. "
+        "Você TEM AUTONOMIA para executar todas as funções do app via conversa: "
+        "listar tokens, mostrar saldos, cotações, bots, ordens abertas, histórico, PnL. "
+        "Quando o usuário perguntar algo, RESPONDA COM OS DADOS no reply (não diga 'vá na página X'). "
+        "Use os números do contexto da conta abaixo. Nunca invente dados.\n\n"
+        "REGRAS DE COMPORTAMENTO:\n"
+        "1. Se o usuário pedir 'meus tokens' ou 'minha carteira', LISTE TODOS os tokens com saldo, "
+        "quantidade e valor em USD no reply. Adicione action navigate para quem quiser ver mais.\n"
+        "2. Se o usuário pedir cotação, responda com o preço.\n"
+        "3. Se o usuário pedir para criar ordem mas faltar dados (token ou valor), "
+        "LISTE os tokens da carteira dele e PERGUNTE qual usar e quanto.\n"
+        "4. Se o usuário pedir ordens abertas ou histórico, use intent=list_orders ou intent=order_history.\n"
+        "5. Se o usuário pedir bots, liste os bots ativos com status.\n"
+        "6. Seja PROATIVO: sugira ações baseado nos dados da carteira.\n"
+        "7. Nunca execute ordem sozinho — proponha e o usuário confirma.\n\n"
         "Responda SOMENTE JSON válido, sem markdown:\n"
-        '{"reply":"2 a 6 frases em português","intent":"advise|plan|buy|sell|create_bot|wallet|price|'
-        'list_bots|start_bot|stop_bot|open_hunter|help|unknown","token":"SOL","quote":"USDT",'
+        '{"reply":"texto rico em português com dados concretos (saldos, preços, listas)","intent":"advise|plan|buy|sell|create_bot|wallet|price|'
+        'list_bots|start_bot|stop_bot|open_hunter|list_orders|order_history|help|unknown","token":"SOL","quote":"USDT",'
         '"amount":50,"amount_kind":"quote|base|all|pct","pct":null,"ord_type":"limit|market",'
         '"px":null,"buy_pct":3,'
         '"profit_target_pct":1,"draft":{"from_token":"PEPE","from_kind":"all","from_pct":100,'
         '"to":[{"token":"SOL","pct":60},{"token":"ETH","pct":40}],"quote":"USDT",'
-        '"also_bots":false,"buy_pct":3,"profit_target_pct":1},"steps":[]}\n'
-        "intent plan = vender um token e com o valor comprar um ou mais outros "
-        "(giro/rotação), ou um roteiro de vários passos. Preencha draft e steps.\n"
-        "steps: lista [{type:order|create_bot, side:buy|sell, token, amount, amount_kind, pct,"
-        "buy_pct, profit_target_pct, quote_amount}].\n"
-        "Se faltar token, %, ou o que comprar depois da venda, intent=plan, steps=[], "
-        "atualize draft e pergunte UMA coisa no reply.\n"
-        "intent buy/sell = montar ordem agora. «crie/abra uma ordem de XRP» é buy (ou sell se disser vender). "
-        "ord_type=limit se disser limite/limit/ordem; market se disser mercado. "
-        "«valor alto» = usar ~90% do saldo disponível (USDT na compra, token na venda).\n"
-        "intent advise = análise/sugestão (PnL, compensar) SEM ordem. "
-        "Se o usuário pediu ordem, NÃO use advise.\n"
-        "PROIBIDO responder «não entendi» com lista de frases prontas. Se faltar dado, pergunte com base na carteira.\n"
-        "Se o usuário disser sim/ok/pode/monta e o draft já estiver completo, feche os steps.\n"
-        "Nunca diga que enviou ordem. Só proponha. Nada vai à OKX sem o usuário confirmar.\n"
-        f"Contexto da conta:\n{ctx or 'indisponível'}\n"
+        '"also_bots":false,"buy_pct":3,"profit_target_pct":1},"steps":[]}\n\n'
+        "INTENTS:\n"
+        "- wallet = listar tokens/saldos. INCLUA A LISTA COMPLETA no reply.\n"
+        "- price = cotação de um token.\n"
+        "- buy/sell = montar ordem. Se faltar token, liste as opções da carteira no reply e pergunte.\n"
+        "- plan = giro multi-step (vender A, comprar B e C).\n"
+        "- create_bot = criar bot DCA.\n"
+        "- start_bot/stop_bot = iniciar/pausar bot.\n"
+        "- list_bots = listar bots ativos.\n"
+        "- list_orders = mostrar ordens abertas.\n"
+        "- order_history = histórico de ordens.\n"
+        "- open_hunter = abrir radar de dips.\n"
+        "- advise = análise/sugestão sem ação.\n"
+        "- help = ajuda geral.\n\n"
+        "QUANDO O USUÁRIO PEDIR ORDEM SEM ESPECIFICAR TOKEN:\n"
+        "No reply, liste os tokens disponíveis na carteira dele com saldos e pergunte qual usar. "
+        "NÃO diga apenas 'Qual token?'. Mostre as opções reais.\n\n"
+        "QUANDO O USUÁRIO PERGUNTAR 'QUAIS MEUS TOKENS' OU 'MINHA CARTEIRA':\n"
+        "intent=wallet. No reply inclua a lista formatada com: Token | Quantidade | Valor USD.\n\n"
+        f"Contexto da conta (USE ESSES DADOS NAS RESPOSTAS):\n{ctx or 'indisponível'}\n\n"
         f"Rascunho atual do plano:\n{draft_txt}"
     )
 
@@ -333,8 +348,12 @@ def parse_local(text: str) -> dict[str, Any]:
             intent = "stop_bot"
         elif re.search(r"\b(meus bots|listar? (os )?bots|quais bots)\b", t):
             intent = "list_bots"
-        elif re.search(r"\b(saldo|carteira|quanto tenho|quanto eu tenho|wallet)\b", t):
+        elif re.search(r"\b(saldo|carteira|quanto tenho|quanto eu tenho|wallet|meus tokens|tokens dispon[ií]veis)\b", t):
             intent = "wallet"
+        elif re.search(r"\b(ordens? aberta|pending|ordens? pendente)\b", t):
+            intent = "list_orders"
+        elif re.search(r"\b(hist[oó]rico|[uú]ltimas? ordens?|ordens? (feita|executada|passada))\b", t):
+            intent = "order_history"
         elif re.search(r"\b(preço|preco|cotação|cotacao|quanto (está|esta|tá|ta))\b", t):
             intent = "price"
         elif re.search(r"\b(caçador|cacador|hunter|radar|dip)\b", t):
@@ -537,28 +556,38 @@ async def _llm_parse(
         "Authorization": f"Bearer {settings.llm_api_key.strip()}",
         "Content-Type": "application/json",
     }
+    import logging
+    _log = logging.getLogger("okbot.assistant")
+    _log.info(f"[LLM] calling {url} model={payload.get('model')}")
     try:
         async with httpx.AsyncClient(timeout=25.0) as client:
             res = await client.post(url, headers=headers, json=payload)
+        _log.info(f"[LLM] status={res.status_code}")
         if res.status_code >= 400:
+            _log.warning(f"[LLM] first attempt failed: {res.status_code} {res.text[:300]}")
             # alguns modelos não aceitam response_format
             payload.pop("response_format", None)
             async with httpx.AsyncClient(timeout=25.0) as client:
                 res = await client.post(url, headers=headers, json=payload)
+            _log.info(f"[LLM] retry status={res.status_code}")
         if res.status_code >= 400:
+            _log.error(f"[LLM] final failure: {res.status_code} {res.text[:500]}")
             return None
         body = res.json()
         content = (
             ((body.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
         )
+        _log.info(f"[LLM] raw content: {content[:300]}")
         content = content.strip()
         if content.startswith("```"):
             content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.I)
         data = json.loads(content)
         if not isinstance(data, dict):
+            _log.warning(f"[LLM] parsed but not dict: {type(data)}")
             return None
         return data
-    except Exception:
+    except Exception as exc:
+        _log.exception(f"[LLM] exception: {exc}")
         return None
 
 
@@ -810,18 +839,40 @@ async def _account_context(okx, port: dict[str, Any] | None = None) -> dict[str,
         bots = [f"{b.get('name')} ({b.get('inst_id')})" for b in (db.list_bots() or [])[:8]]
     except Exception:
         pass
-    lines = [
-        f"{a['ccy']} {float(a.get('avail') or 0):g} (≈{_fmt_usd(a.get('eq_usd'))}"
-        + (f", UPL {_fmt_usd(a.get('spot_upl'))}" if a.get("spot_upl") is not None else "")
-        + ")"
-        for a in assets[:10]
-    ]
+    # Lista detalhada para o LLM poder responder perguntas sobre a carteira
+    lines = []
+    for a in assets[:20]:
+        ccy = a.get("ccy", "?")
+        avail = float(a.get("avail") or 0)
+        eq = float(a.get("eq_usd") or 0)
+        upl = a.get("spot_upl")
+        chg = a.get("chg24")
+        line = f"{ccy}: qty={avail:g}, valor≈US${eq:.2f}"
+        if upl is not None:
+            line += f", UPL={_fmt_usd(upl)}"
+        if chg is not None:
+            line += f", 24h={float(chg):+.1f}%"
+        lines.append(line)
+    # Ordens abertas (resumo)
+    open_orders_text = ""
+    if okx:
+        try:
+            pending = await okx.list_pending()
+            if pending:
+                oo_lines = []
+                for o in pending[:5]:
+                    oo_lines.append(f"{o.get('side','?')} {o.get('instId','?')} sz={o.get('sz','?')} px={o.get('px','?')}")
+                open_orders_text = f"\nOrdens abertas ({len(pending)}): " + "; ".join(oo_lines)
+        except Exception:
+            pass
     text = (
+        f"Patrimônio total ≈ US${float(port.get('total_eq') or 0):.2f}.\n"
         f"PnL hoje {_fmt_usd(port.get('pnl_today'))}, 24h {_fmt_usd(port.get('pnl_24h'))}, "
         f"semana {_fmt_usd(port.get('pnl_week'))}, mês {_fmt_usd(port.get('pnl_month'))}, "
         f"UPL spot {_fmt_usd(port.get('spot_upl'))}.\n"
-        "Carteira: " + (", ".join(lines) or "vazia ou sem chave OKX") + ".\n"
-        "Bots: " + (", ".join(bots) or "nenhum")
+        "Tokens na carteira:\n" + ("\n".join(lines) or "vazia ou sem chave OKX") + "\n"
+        "Bots: " + (", ".join(bots) or "nenhum") +
+        open_orders_text
     )
     return {"text": text, "wallet": wallet, "assets": assets, "portfolio": port}
 
@@ -1006,10 +1057,15 @@ async def handle(
     if intent in {"help", "unknown", "advise"}:
         if not reply:
             reply = _advise_reply(text, snap)
+        # Adicionar ações de navegação relevantes baseado no contexto
+        actions: list[dict[str, Any]] = []
+        if snap.get("assets"):
+            actions.append({"type": "navigate", "hash": "#/wallet", "label": "Ver carteira"})
+        actions.append({"type": "navigate", "hash": "#/orders", "label": "Ver ordens"})
         return {
             "reply": reply,
             "mode": mode,
-            "actions": [],
+            "actions": actions,
             "draft": None,
         }
 
@@ -1055,31 +1111,111 @@ async def handle(
         wallet = await _wallet_bits(okx, token) if okx else {}
         if parsed.get("token") and wallet.get("asset"):
             a = wallet["asset"]
-            reply = reply or f"Saldo trading de {a['ccy']}: {a['avail']:g} (≈ US${float(a.get('eq_usd') or 0):.2f})."
+            reply = reply or (
+                f"📊 **{a['ccy']}**\n"
+                f"• Disponível: {a['avail']:g}\n"
+                f"• Valor: ≈ US${float(a.get('eq_usd') or 0):.2f}"
+            )
         else:
             tot = wallet.get("total_eq")
-            top = ", ".join(f"{x['ccy']} {x['avail']:g}" for x in (wallet.get("assets") or [])[:6]) or "—"
-            reply = reply or f"Patrimônio trading ≈ US${float(tot or 0):.2f}. Principais: {top}."
+            assets_list = wallet.get("assets") or []
+            if assets_list:
+                lines = []
+                for x in assets_list[:15]:
+                    ccy = x.get("ccy", "?")
+                    avail = float(x.get("avail") or 0)
+                    eq = float(x.get("eq_usd") or 0)
+                    if avail > 0 or eq > 0.01:
+                        lines.append(f"• {ccy}: {avail:g} (≈ US${eq:.2f})")
+                tokens_text = "\n".join(lines) if lines else "nenhum token com saldo"
+                reply = reply or (
+                    f"💰 Patrimônio total ≈ US${float(tot or 0):.2f}\n\n"
+                    f"Seus tokens:\n{tokens_text}\n\n"
+                    "Quer operar algum deles? Me diz o token e a ação (comprar, vender, criar bot)."
+                )
+            else:
+                reply = reply or f"Patrimônio trading ≈ US${float(tot or 0):.2f}. Não encontrei tokens com saldo."
         return {
             "reply": reply,
             "mode": mode,
-            "actions": [{"type": "navigate", "hash": "#/wallet", "label": "Ver carteira"}],
+            "actions": [{"type": "navigate", "hash": "#/wallet", "label": "Ver carteira completa"}],
             "wallet": wallet,
         }
 
     if intent == "price":
         if not inst or not okx:
+            # Sem token especificado, listar preços dos tokens da carteira
+            wallet = await _wallet_bits(okx) if okx else {}
+            assets_list = wallet.get("assets") or []
+            if assets_list and okx:
+                price_lines = []
+                for a in assets_list[:8]:
+                    ccy = a.get("ccy", "")
+                    if ccy in _STABLES:
+                        continue
+                    try:
+                        t = await okx.get_ticker(f"{ccy}-USDT")
+                        p = okx._f(t.get("last"))
+                        if p:
+                            price_lines.append(f"• {ccy}: US${p:g}")
+                    except Exception:
+                        continue
+                if price_lines:
+                    reply = reply or ("Cotações dos seus tokens:\n" + "\n".join(price_lines) + "\n\nQual te interessa?")
+                    return {"reply": reply, "mode": mode, "actions": [{"type": "navigate", "hash": "#/tokens", "label": "Ver todos"}]}
             return {"reply": reply or "Qual token? Ex.: «preço do SOL».", "mode": mode, "actions": []}
         try:
             ticker = await okx.get_ticker(inst)
             last = okx._f(ticker.get("last"))
         except Exception:
             last = None
-        reply = reply or (f"{inst} ≈ {last:g}." if last else f"Não achei cotação de {inst}.")
+        reply = reply or (f"{inst} ≈ US${last:g}." if last else f"Não achei cotação de {inst}.")
         return {
             "reply": reply,
             "mode": mode,
-            "actions": [{"type": "navigate", "hash": "#/tokens", "label": f"Ver {inst}"}],
+            "actions": [{"type": "navigate", "hash": "#/tokens", "label": f"Ver gráfico {inst}"}],
+        }
+
+    if intent in {"list_orders", "order_history"}:
+        from . import db as _db
+        if okx:
+            try:
+                if intent == "list_orders":
+                    pending = await okx.list_pending()
+                    if pending:
+                        lines = []
+                        for o in pending[:10]:
+                            side = o.get("side", "?")
+                            inst_o = o.get("instId", "?")
+                            sz = o.get("sz", "?")
+                            px_o = o.get("px", "mercado")
+                            state = o.get("state", "?")
+                            lines.append(f"• {side.upper()} {inst_o} | qty: {sz} | px: {px_o} | {state}")
+                        reply = reply or (f"Ordens abertas ({len(pending)}):\n" + "\n".join(lines))
+                    else:
+                        reply = reply or "Nenhuma ordem aberta no momento."
+                else:
+                    history = await okx.list_history(limit=10)
+                    if history:
+                        lines = []
+                        for o in history[:10]:
+                            side = o.get("side", "?")
+                            inst_o = o.get("instId", "?")
+                            sz = o.get("fillSz") or o.get("sz", "?")
+                            px_o = o.get("avgPx") or o.get("px", "?")
+                            state = o.get("state", "?")
+                            lines.append(f"• {side.upper()} {inst_o} | qty: {sz} | px: {px_o} | {state}")
+                        reply = reply or (f"Últimas ordens:\n" + "\n".join(lines))
+                    else:
+                        reply = reply or "Sem histórico de ordens recente."
+            except Exception:
+                reply = reply or "Não consegui buscar as ordens agora. Tente novamente."
+        else:
+            reply = reply or "Sem conexão OKX para buscar ordens."
+        return {
+            "reply": reply,
+            "mode": mode,
+            "actions": [{"type": "navigate", "hash": "#/orders", "label": "Ver ordens"}],
         }
 
     if intent in {"start_bot", "stop_bot", "list_bots"}:
@@ -1087,11 +1223,20 @@ async def handle(
 
         bots = db.list_bots()
         if intent == "list_bots":
-            names = ", ".join(f"{b.get('name')} ({b.get('inst_id')})" for b in bots[:8]) or "nenhum bot"
+            if bots:
+                lines = []
+                for b in bots[:10]:
+                    name = b.get("name", "?")
+                    inst_b = b.get("inst_id", "?")
+                    status = "▶️ ativo" if b.get("running") else "⏸️ parado"
+                    lines.append(f"• {name} ({inst_b}) — {status}")
+                reply = reply or ("Seus bots:\n" + "\n".join(lines) + "\n\nQuer iniciar, pausar ou criar um novo?")
+            else:
+                reply = reply or "Nenhum bot criado ainda. Quer criar um? Me diz o token, ex.: «cria bot de SOL, queda 3%, lucro 1%»."
             return {
-                "reply": reply or f"Bots: {names}.",
+                "reply": reply,
                 "mode": mode,
-                "actions": [{"type": "navigate", "hash": "#/bot", "label": "Abrir bots"}],
+                "actions": [{"type": "navigate", "hash": "#/bot", "label": "Gerenciar bots"}],
             }
         want = (token or "").upper()
         chosen = None
@@ -1161,10 +1306,35 @@ async def handle(
 
     if intent in {"buy", "sell"}:
         if not inst:
+            # Listar tokens disponíveis para que o usuário escolha
+            wallet = await _wallet_bits(okx) if okx else {}
+            assets_list = wallet.get("assets") or []
+            side_label = "comprar" if intent == "buy" else "vender"
+            if assets_list:
+                if intent == "sell":
+                    # Mostrar apenas tokens não-stables que o user pode vender
+                    sellable = [a for a in assets_list if str(a.get("ccy", "")).upper() not in _STABLES and float(a.get("avail") or 0) > 0]
+                    if sellable:
+                        lines = [f"• {a['ccy']}: {float(a['avail']):g} (≈ US${float(a.get('eq_usd') or 0):.2f})" for a in sellable[:10]]
+                        reply = reply or (
+                            f"Tokens disponíveis para venda:\n" + "\n".join(lines) + "\n\n"
+                            "Qual quer vender e quanto? (ex.: «vende tudo de XRP» ou «vende 50% de SOL»)"
+                        )
+                    else:
+                        reply = reply or "Você não tem tokens (não-estáveis) com saldo para vender."
+                else:
+                    # Compra: mostrar saldo USDT disponível e sugerir tokens
+                    stable_avail = sum(float(a.get("avail") or 0) for a in assets_list if str(a.get("ccy", "")).upper() in _STABLES)
+                    reply = reply or (
+                        f"Saldo disponível para compra: ≈ US${stable_avail:.2f}\n\n"
+                        "Qual token quer comprar e quanto? (ex.: «compre 30 USDT de SOL» ou «compre ETH com tudo»)"
+                    )
+            else:
+                reply = reply or f"Qual token quer {side_label}? Ex.: «compre 20 USDT de SOL»."
             return {
-                "reply": reply or "Qual token? Ex.: «compre 20 USDT de SOL».",
+                "reply": reply,
                 "mode": mode,
-                "actions": [],
+                "actions": [{"type": "navigate", "hash": "#/orders", "label": "Abrir Ordens"}],
             }
         side = "buy" if intent == "buy" else "sell"
         kind = str(parsed.get("amount_kind") or ("quote" if side == "buy" else "base"))
