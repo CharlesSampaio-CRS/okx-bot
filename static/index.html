@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OKBot</title>
+  <link rel="icon" href="/static/img/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" href="/static/img/favicon-32.png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/static/img/apple-touch-icon.png" />
+  <link rel="shortcut icon" href="/static/favicon.ico" />
+  <meta name="theme-color" content="#121212" />
+  <meta name="application-name" content="OKBot" />
+  <script>
+    try {
+      if (localStorage.getItem('okx_theme') === 'dark')
+        document.documentElement.classList.add('theme-dark');
+    } catch (_) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css?v=okx-wallet-brl8" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div id="login-gate" class="login-gate" hidden>
+    <div class="login-card">
+      <img class="login-logo" src="/static/img/logo-192.png" width="56" height="56" alt="OKBot" />
+      <h1>OKBot</h1>
+      <p class="login-lead">Entre para ver as suas chaves OKX e os seus bots.</p>
+      <a id="btn-google-login" class="btn btn-google" href="/api/auth/login">
+        <svg class="btn-google-ico" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
+          <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+          <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+          <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+        </svg>
+        Continuar com Google
+      </a>
+      <p class="login-note">Cada e-mail Google tem a própria conta. Ao sair, você escolhe outro.</p>
+    </div>
+  </div>
+  <aside class="sidebar" id="app-sidebar">
+    <a class="brand" href="#/wallet" title="OKBot">
+      <img class="brand-logo" src="/static/img/logo-192.png" width="36" height="36" alt="OKBot" />
+      <span class="mark">OKBot</span>
+    </a>
+    <nav class="nav" id="app-nav">
+      <a href="#/wallet" data-page="wallet" class="active" title="Carteira">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M3 7l2.5-3h13L21 7"/><path d="M16 13h3"/></svg>
+        <span>Carteira</span>
+      </a>
+      <a href="#/tokens" data-page="tokens" title="Tokens">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 8.5h3.2a2.2 2.2 0 0 1 0 4.4H9.5V8.5z"/><path d="M9.5 12.9h3.6a2.2 2.2 0 0 1 0 4.4H9.5v-4.4z"/><path d="M11.2 7v1.5M11.2 17.3V15.8M13.4 7v1.5M13.4 17.3V15.8"/></svg>
+        <span>Tokens</span>
+      </a>
+      <a href="#/orders" data-page="orders" title="Ordens">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h10"/><path d="M18 15l2 2 3-4"/></svg>
+        <span>Ordens</span>
+      </a>
+      <a href="#/bot" data-page="overview" title="Bot">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M12 3v4M8 14h.01M16 14h.01M9 18h6"/><circle cx="12" cy="7" r="2"/></svg>
+        <span>Bot</span>
+      </a>
+      <a href="#/lab" data-page="lab" title="Lab">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 3h6"/><path d="M10 3v7l-4 8a3 3 0 0 0 2.7 4.5h6.6A3 3 0 0 0 18 18l-4-8V3"/><path d="M8.5 14h7"/></svg>
+        <span>Lab</span>
+      </a>
+      <a href="#/hunter" data-page="hunter" title="Caçador">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <span>Caçador</span>
+      </a>
+      <a href="#/strategies" data-page="strategies" title="Estratégias">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 15l3-4 3 2 5-7"/></svg>
+        <span>Estratégias</span>
+      </a>
+      <a href="#/config" data-page="config" title="Configurações">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        <span>Configurações</span>
+      </a>
+      <a href="#/docs" data-page="docs" title="Como funciona">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M5 4h10l4 4v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M15 4v4h4"/><path d="M8 12h8M8 16h8M8 8h3"/></svg>
+        <span>Como funciona</span>
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <div id="user-chip" class="user-chip" hidden>
+        <img id="user-chip-photo" alt="" />
+        <div class="user-chip-text">
+          <strong id="user-chip-name">—</strong>
+          <small id="user-chip-email">—</small>
+        </div>
+        <button id="btn-logout" class="btn btn-ghost" type="button">Sair</button>
+      </div>
+      <button id="btn-nav-toggle" class="btn btn-ico btn-ghost nav-toggle" type="button" title="Recolher menu" aria-label="Recolher menu" aria-expanded="true" aria-controls="app-nav">
+        <svg class="nav-toggle-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h1 id="page-title">Carteira</h1>
+        <p id="page-sub" class="sub">Saldos Spot OKX</p>
+      </div>
+      <div class="top-actions">
+        <span id="mode-label" class="pill mode-pill off" hidden title="Modo da conta OKX">
+          <span class="mode-dot live" aria-hidden="true"></span>
+          <span class="mode-text">Live</span>
+        </span>
+        <span id="run-label" class="pill off" title="Status do bot">Parado</span>
+        <button id="btn-copilot" class="btn btn-ico btn-ghost" type="button" title="Copiloto" aria-label="Copiloto" aria-expanded="false" aria-controls="copilot-panel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
+            <path d="M8 9h8M8 13h5"/>
+          </svg>
+        </button>
+        <button id="btn-theme-toggle" class="btn btn-ico btn-ghost" type="button" title="Tema escuro" aria-label="Tema escuro">
+          <svg class="theme-ico theme-ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M21 14.3A8.5 8.5 0 0 1 9.7 3a7 7 0 1 0 11.3 11.3z"/>
+          </svg>
+          <svg class="theme-ico theme-ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" hidden>
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="content">
+      <section id="page-overview" class="page">
+        <p id="msg" class="flash"></p>
+        <article class="card" id="bot-list-card">
+          <div class="card-h">
+            <div>
+              <h2>Bots</h2>
+              <span class="hint" style="margin:4px 0 0;display:block">Clique para expandir · só um ativo por vez</span>
+            </div>
+            <button id="btn-new-bot" class="btn btn-primary" type="button" title="Criar um novo bot">Novo bot</button>
+          </div>
+          <div id="bots-list" class="bots-list"></div>
+        </article>
+      </section>
+
+      <section id="page-wallet" class="page active">
+        <div class="wallet-toolbar">
+          <span id="w-updated" class="hint" style="margin:0"></span>
+          <button id="btn-wallet-refresh" class="btn btn-ico btn-ghost" type="button" title="Atualizar tudo" aria-label="Atualizar tudo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          </button>
+        </div>
+
+        <article class="card wallet-summary">
+          <div class="wallet-summary-top">
+            <div class="wallet-summary-main">
+              <span class="label">Patrimônio total</span>
+              <strong id="w-total">—</strong>
+              <small id="w-total-brl" class="kpi-sub"></small>
+            </div>
+          </div>
+          <div class="wallet-pnl-block">
+            <span class="label">PnL</span>
+            <div id="w-pnl-col" class="pnl-col pnl-col-tiles"></div>
+          </div>
+        </article>
+
+        <article class="card wallet-tokens-card">
+          <div class="card-h">
+            <h2>Tokens</h2>
+            <div class="top-actions wallet-top-actions">
+              <label class="toggle-switch wallet-dust-toggle" for="wallet-show-dust" title="Mostrar tokens com saldo menor que 0,001">
+                <span class="wallet-dust-label">Saldos &lt; 0,001</span>
+                <input type="checkbox" id="wallet-show-dust" />
+                <span class="toggle-switch-ui" aria-hidden="true"></span>
+              </label>
+            </div>
+          </div>
+          <p id="w-dust-hint" class="hint" hidden></p>
+          <p id="w-msg" class="flash"></p>
+          <div class="table-wrap">
+            <table class="wallet-table">
+              <thead>
+                <tr>
+                  <th data-sort="ccy">Token</th>
+                  <th data-sort="total_bal" class="num sort-desc">Qtd</th>
+                  <th data-sort="avail" class="num">Disponível</th>
+                  <th data-sort="eq_usd" class="num">Valor USD</th>
+                  <th data-sort="last" class="num">Preço</th>
+                  <th data-sort="chg24" class="num">24h</th>
+                  <th data-sort="spot_upl" class="num">PnL spot</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="wallet-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="page-tokens" class="page">
+        <article class="card">
+          <div class="card-h">
+            <h2>Tokens</h2>
+            <div class="top-actions">
+              <input id="tokens-search" type="search" class="pairs-search" placeholder="Buscar BTC, ETH, SOL, BRL…" autocomplete="off" />
+              <button id="btn-tokens-refresh" class="btn btn-ico btn-ghost" type="button" title="Atualizar" aria-label="Atualizar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+              </button>
+            </div>
+          </div>
+          <p class="hint">Na busca, lista <strong>todos os pares</strong>. Liq. = nota A–D (volume + spread). Clique na coluna para ordenar.</p>
+          <div class="seg quote-seg pairs-quote" id="tokens-quote"></div>
+          <p id="tokens-msg" class="flash"></p>
+          <div class="table-wrap">
+            <table class="tokens-table">
+              <thead>
+                <tr>
+                  <th data-sort="base">Token</th>
+                  <th data-sort="inst_id">Par</th>
+                  <th data-sort="last" class="num">Preço</th>
+                  <th data-sort="chg24" class="num">24h</th>
+                  <th data-sort="vol" class="num">Vol 24h</th>
+                  <th data-sort="liq_rank" class="num" title="Nota A–D: volume 24h + spread bid/ask">Liq.</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tokens-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section id="page-orders" class="page">
+        <div class="order-layout">
+          <article class="card order-card">
+            <div class="card-h"><h2>Nova ordem</h2></div>
+            <form id="order-form" class="form order-form">
+              <div id="order-form-skeleton" class="order-form-skeleton" hidden aria-hidden="true">
+                <div class="sk-line wide"></div>
+                <div class="sk-line"></div>
+                <div class="sk-line"></div>
+                <div class="sk-line short"></div>
+              </div>
+              <div id="order-form-fields" class="order-form-fields">
+              <label class="full">Token / par
+                <input type="hidden" name="inst_id" value="BTC-USDT" required />
+                <div class="token-picker" id="order-token-picker">
+                  <button type="button" id="order-token-btn" class="token-btn">
+                    <img id="order-token-icon" class="token-icon" alt="" hidden />
+                    <span id="order-token-label">Escolher par</span>
+                  </button>
+                  <div id="order-token-menu" class="token-menu" hidden>
+                    <div class="seg quote-seg" id="order-quote-seg"></div>
+                    <input id="order-token-search" type="search" placeholder="Buscar token ou par…" autocomplete="off" />
+                    <div id="order-token-list" class="token-list"></div>
+                  </div>
+                </div>
+              </label>
+              <label class="full order-side-wrap">Lado da ordem
+                <div class="seg order-side-seg" id="order-side-seg" role="group" aria-label="Compra ou venda">
+                  <button type="button" data-side="buy" class="on" aria-pressed="true">
+                    <span class="btn-svg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></span>
+                    Compra
+                  </button>
+                  <button type="button" data-side="sell" aria-pressed="false">
+                    <span class="btn-svg" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg></span>
+                    Venda
+                  </button>
+                </div>
+              </label>
+              <label>Tipo
+                <select name="ord_type">
+                  <option value="limit">Limite</option>
+                  <option value="market">Mercado</option>
+                  <option value="post_only">Post-only</option>
+                  <option value="ioc">IOC</option>
+                  <option value="fok">FOK</option>
+                </select>
+              </label>
+              <label id="order-px-wrap">Preço
+                <input name="px" type="number" step="any" min="0" />
+              </label>
+              <label id="order-total-wrap" class="order-total-wrap">Valor da ordem
+                <output id="order-total-value" class="order-total-out">—</output>
+              </label>
+              <label id="order-tgt-wrap">Informar em
+                <select name="tgt_ccy">
+                  <option value="quote_ccy">Valor do par</option>
+                  <option value="base_ccy">Token</option>
+                </select>
+              </label>
+              <label class="full"><span id="order-sz-label">Valor</span> <small id="order-sz-unit"></small>
+                <input name="sz" type="number" step="any" min="0" required placeholder="Ex. 49" />
+                <div class="seg pct-seg" id="order-pct">
+                  <button type="button" data-pct="10">10%</button>
+                  <button type="button" data-pct="25">25%</button>
+                  <button type="button" data-pct="50">50%</button>
+                  <button type="button" data-pct="100">100%</button>
+                </div>
+              </label>
+              <div class="form-actions">
+                <button id="btn-order-submit" class="btn btn-buy btn-cta" type="submit">
+                  <span id="btn-order-submit-ico" class="btn-svg">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h11"/><path d="M14 3l4 4-4 4"/><path d="M17 17H6"/><path d="M10 13l-4 4 4 4"/></svg>
+                  </span>
+                  <span id="btn-order-submit-label">Comprar</span>
+                </button>
+                <button id="btn-order-clear" class="btn btn-ico btn-ghost" type="button" title="Limpar" aria-label="Limpar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 5l14 14M19 5L5 19"/></svg>
+                </button>
+                <button id="btn-order-refresh" class="btn btn-ico btn-ghost" type="button" title="Atualizar" aria-label="Atualizar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+                </button>
+              </div>
+              <p id="order-msg" class="flash"></p>
+              </div>
+            </form>
+            <p id="order-estimate" class="order-estimate"></p>
+            <p id="order-meta" class="hint"></p>
+          </article>
+          <div class="order-tables">
+            <article class="card">
+              <div class="card-h">
+                <h2>Abertas</h2>
+                <div class="top-actions">
+                  <button id="btn-open-refresh" class="btn btn-ico btn-ghost" type="button" title="Atualizar" aria-label="Atualizar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+                  </button>
+                  <button id="btn-cancel-all" class="btn btn-ghost" type="button">Cancelar todas</button>
+                </div>
+              </div>
+              <div id="open-summary" class="order-summary"></div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Hora</th><th>Origem</th><th>Par</th><th>Lado</th><th>Tipo</th><th>Qtd</th><th>Realizado</th><th>Preço</th><th>Valor</th><th>PnL</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="orders-open"></tbody>
+                </table>
+              </div>
+            </article>
+            <article class="card">
+              <div class="card-h">
+                <h2>Histórico / trades</h2>
+                <button id="btn-hist-refresh" class="btn btn-ico btn-ghost" type="button" title="Atualizar (ignora cache)" aria-label="Atualizar">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+                </button>
+              </div>
+              <div class="hist-filters">
+                <div class="seg" id="hist-period" title="Período">
+                  <button type="button" data-period="1h" title="Última 1 hora">1H</button>
+                  <button type="button" data-period="24h">24h</button>
+                  <button type="button" data-period="7d">7D</button>
+                  <button type="button" data-period="30d" class="on" title="1 mês">1M</button>
+                  <button type="button" data-period="90d" title="3 meses">3M</button>
+                  <button type="button" data-period="180d" title="6 meses">6M</button>
+                  <button type="button" data-period="365d" title="1 ano">1A</button>
+                </div>
+                <div class="seg" id="hist-origin" title="Origem">
+                  <button type="button" data-origin="all" class="on">Todas</button>
+                  <button type="button" data-origin="bot">Bot</button>
+                  <button type="button" data-origin="user">Usuário</button>
+                </div>
+                <div class="seg" id="hist-side" title="Lado">
+                  <button type="button" data-side="all" class="on">Lado</button>
+                  <button type="button" data-side="buy">Compra</button>
+                  <button type="button" data-side="sell">Venda</button>
+                </div>
+                <div class="seg" id="hist-status" title="Status">
+                  <button type="button" data-status="all" class="on">Status</button>
+                  <button type="button" data-status="filled">Executada</button>
+                  <button type="button" data-status="canceled">Cancelada</button>
+                </div>
+              </div>
+              <p id="hist-period-hint" class="hint">Período no estilo do gráfico · filtre por origem (bot/usuário), lado e status.</p>
+              <input id="hist-token-search" type="search" class="pairs-search hist-token-search" placeholder="Buscar token ou par (BTC, SOL, ETH-USDT…)" autocomplete="off" />
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Hora</th><th>Origem</th><th>Par</th><th>Lado</th><th>Tipo</th><th>Qtd</th><th>Realizado</th><th>Preço</th><th>Valor</th><th>PnL</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="orders-history"></tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-lab" class="page">
+        <p class="page-hint">Lab Spot · simule no histórico OKX · <a href="#/strategies">Estratégias</a> para comparar presets</p>
+        <p id="lab-msg" class="flash"></p>
+        <div class="lab-layout">
+          <aside class="lab-side">
+            <article class="card lab-controls">
+              <div class="ctrl-sec">
+                <div class="ctrl-sec-h"><span class="ctrl-sec-n">1</span><strong>Mercado</strong></div>
+                <div class="lab-field">Token
+                  <div class="lab-token-search-wrap">
+                    <input id="lab-token-search" type="search" class="pairs-search lab-token-search" placeholder="Buscar BTC, ETH, SOL, BOME…" autocomplete="off" />
+                    <div id="lab-token-results" class="lab-token-results" hidden></div>
+                  </div>
+                  <div id="lab-tokens" class="lab-tokens" role="group" aria-label="Sugestões"></div>
+                  <small id="lab-token-hint" class="hint">Busque qualquer par Spot ou use as sugestões</small>
+                </div>
+                <div class="lab-field">Período
+                  <div class="seg" id="lab-days">
+                    <button type="button" data-days="7">7d</button>
+                    <button type="button" data-days="30" class="on">30d</button>
+                    <button type="button" data-days="60">60d</button>
+                    <button type="button" data-days="90">90d</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="ctrl-sec">
+                <div class="ctrl-sec-h"><span class="ctrl-sec-n">2</span><strong>Parâmetros</strong></div>
+                <label class="lab-field">Aporte
+                  <div class="lab-aporte-row">
+                    <input id="lab-aporte" type="number" min="1" step="1" value="300" />
+                    <select id="lab-aporte-ccy">
+                      <option value="USDT" selected>USDT</option>
+                      <option value="quote">Quote do par</option>
+                    </select>
+                  </div>
+                  <small id="lab-aporte-hint" class="hint">Caixa all-in a cada ciclo de compra</small>
+                </label>
+                <div class="lab-params-row">
+                  <label class="lab-field">Queda compra %
+                    <input id="lab-buy-pct" type="number" min="0.1" max="50" step="0.1" value="2" />
+                  </label>
+                  <label class="lab-field">Lucro alvo %
+                    <input id="lab-target-pct" type="number" min="0.1" max="50" step="0.1" value="1" />
+                  </label>
+                </div>
+                <label class="lab-field">Taxa taker %
+                  <input id="lab-fee-pct" type="number" min="0" max="5" step="0.01" value="0.1" />
+                </label>
+              </div>
+
+              <div class="ctrl-sec ctrl-sec-actions">
+                <div class="ctrl-sec-h"><span class="ctrl-sec-n">3</span><strong>Rodar</strong></div>
+                <div class="lab-actions">
+                  <button id="btn-lab-run" class="btn btn-primary btn-cta" type="button">Rodar simulação</button>
+                  <button id="btn-lab-create-bot" class="btn btn-ghost btn-cta" type="button" hidden>Criar bot com estes params</button>
+                  <button id="btn-lab-compare" class="btn btn-ghost btn-cta" type="button">Comparar presets →</button>
+                </div>
+                <div class="lab-field" hidden>
+                  <div class="seg" id="lab-strat-sort">
+                    <button type="button" data-sort="profit" class="on">Lucro</button>
+                    <button type="button" data-sort="assert">Assertividade</button>
+                  </div>
+                </div>
+                <ol class="lab-flow">
+                  <li><strong>Compra</strong> quando cai o %</li>
+                  <li><strong>Venda</strong> no lucro líquido alvo</li>
+                  <li><strong>Criar bot</strong> se o resultado servir</li>
+                </ol>
+              </div>
+            </article>
+          </aside>
+          <div class="lab-main">
+            <div id="lab-empty" class="card lab-empty">
+              <h3>Sem resultado ainda</h3>
+              <p>Escolha o token, ajuste queda/alvo e clique em <strong>Rodar simulação</strong>.</p>
+            </div>
+            <div id="lab-results" class="lab-results" hidden>
+              <article id="lab-strat-compare" class="card lab-winner-panel" hidden>
+                <div class="lab-winner-head">
+                  <span class="lab-winner-kicker">Melhor estratégia</span>
+                  <div id="lab-winner-title" class="lab-winner-title">—</div>
+                  <p id="lab-winner-sub" class="hint">—</p>
+                </div>
+                <div class="lab-winner-kpis">
+                  <div class="lab-winner-kpi"><span>Retorno</span><strong id="lab-winner-ret">—</strong></div>
+                  <div class="lab-winner-kpi"><span>PnL</span><strong id="lab-winner-pnl">—</strong></div>
+                  <div class="lab-winner-kpi"><span>Assertividade</span><strong id="lab-winner-assert">—</strong></div>
+                  <div class="lab-winner-kpi"><span>Ciclos</span><strong id="lab-winner-cycles">—</strong></div>
+                </div>
+                <div class="lab-winner-actions">
+                  <button id="btn-lab-winner-run" class="btn btn-primary" type="button">Ver simulação detalhada</button>
+                  <button id="btn-lab-winner-bot" class="btn btn-ghost" type="button">Criar bot com a melhor</button>
+                </div>
+                <div class="card-h" style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line)">
+                  <h2>Ranking completo</h2>
+                  <span id="lab-rank-meta" class="hint" style="margin:0">—</span>
+                </div>
+                <div id="lab-strat-rank" class="strat-rank"></div>
+              </article>
+              <div id="lab-single-result">
+              <div class="kpis lab-kpis" id="lab-kpis">
+                <article class="card kpi">
+                  <span class="label">Aporte → final</span>
+                  <strong id="lab-capital">—</strong>
+                </article>
+                <article class="card kpi">
+                  <span class="label">Retorno</span>
+                  <strong id="lab-return">—</strong>
+                </article>
+                <article class="card kpi">
+                  <span class="label">Assertividade</span>
+                  <strong id="lab-assert">—</strong>
+                  <small id="lab-assert-sub" class="kpi-sub">—</small>
+                </article>
+                <article class="card kpi">
+                  <span class="label">PnL total</span>
+                  <strong id="lab-total">—</strong>
+                </article>
+              </div>
+              <article class="card" id="lab-summary-card">
+                <div class="card-h">
+                  <h2 id="lab-summary-title">Resultado</h2>
+                  <span id="lab-badge" class="pill off">—</span>
+                </div>
+                <p id="lab-summary-text" class="hint lab-clamp"></p>
+                <p id="lab-summary-meta" class="hint lab-clamp"></p>
+                <ul id="lab-quality-checks" class="lab-checks" hidden></ul>
+                <div class="lab-metrics" id="lab-metrics"></div>
+              </article>
+              <article class="card" id="lab-cycles-card">
+                <div class="card-h">
+                  <h2>Ciclos compra → venda</h2>
+                  <span class="hint" style="margin:0">PnL de cada fluxo</span>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th><th>Compra</th><th>Venda</th><th>Preço C/V</th><th>Gasto</th><th>Recebido</th><th>PnL</th><th>PnL %</th><th>Alvo?</th>
+                      </tr>
+                    </thead>
+                    <tbody id="lab-cycles-body"></tbody>
+                  </table>
+                </div>
+              </article>
+              <details class="card lab-details-card" id="lab-trades-card">
+                <summary class="card-h lab-details-sum">
+                  <h2>Gatilhos</h2>
+                  <span class="hint" style="margin:0">Por que comprou / não executou</span>
+                </summary>
+                <div class="lab-filter seg" id="lab-tl-filter">
+                  <button type="button" data-tl="all" class="on">Todos</button>
+                  <button type="button" data-tl="exec">Efetivados</button>
+                  <button type="button" data-tl="skip">Não executou</button>
+                </div>
+                <div class="table-wrap lab-tl-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Hora</th><th>Ação</th><th>Preço</th><th>Queda %</th><th>PnL %</th><th>Gatilho</th><th>Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody id="lab-timeline"></tbody>
+                  </table>
+                </div>
+              </details>
+              <details class="card lab-details-card" id="lab-fills-card">
+                <summary class="card-h lab-details-sum">
+                  <h2>Trades efetivados</h2>
+                </summary>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Hora</th><th>Lado</th><th>Preço</th><th>Qtd</th><th>Valor</th><th>Taxa</th><th>PnL</th><th>Motivo</th>
+                      </tr>
+                    </thead>
+                    <tbody id="lab-trades"></tbody>
+                  </table>
+                </div>
+              </details>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-hunter" class="page">
+        <p id="hunter-msg" class="flash"></p>
+        <div class="hunter-layout">
+          <aside class="hunter-side">
+            <article class="card hunter-controls">
+              <div class="card-h">
+                <h2>Caçador Spot</h2>
+                <span class="pill off" id="hunter-mode-pill">Radar</span>
+              </div>
+              <p class="hint">Clique em Analisar: o radar avalia <strong>dia, semana e mês</strong> em cada token e mostra para qual horizonte ele é mais propício.</p>
+
+              <label class="lab-field" title="Valor usado para checar se a ordem cabe no livro e para simular a estratégia">Valor de referência
+                <div class="lab-aporte-row">
+                  <input id="hunter-budget" type="number" min="0" step="1" placeholder="0 = limites do sistema" title="Valor de referência da análise. Vazio ou 0 usa o limite de ordem do sistema." />
+                  <select id="hunter-budget-ccy" title="Moeda do valor de referência">
+                    <option value="BRL">BRL</option>
+                    <option value="USDT">USDT</option>
+                    <option value="USDC">USDC</option>
+                  </select>
+                </div>
+                <small class="hint">Usado na liquidez e na simulação. Vazio/0 = limite de ordem.</small>
+              </label>
+
+              <div class="hunter-toggles">
+                <label class="toggle-switch" for="hunter-tradeable" title="Mostra só pares em que o alvo ainda cobre taxa + spread e a ordem cabe no volume/livro. Se a lista vier vazia, desligue ou afrouxe o spread.">
+                  <span class="cascade-label">Só listar viáveis</span>
+                  <input type="checkbox" id="hunter-tradeable" checked />
+                  <span class="toggle-switch-ui" aria-hidden="true"></span>
+                </label>
+              </div>
+
+              <details class="hunter-filters">
+                <summary title="Ajuste a faixa de dips Spot (só pares BASE-QUOTE)">Filtros avançados</summary>
+                <div class="hunter-filter-grid">
+                  <label class="lab-field" title="Queda mínima em 24h para entrar no ranking">Queda mín. %
+                    <input id="hunter-min-drop" type="number" min="0.5" max="50" step="0.5" value="1.5" title="Ex.: 1.5 = tokens caindo ao menos 1,5% em 24h" />
+                  </label>
+                  <label class="lab-field" title="Queda máxima — evita crashes extremos demais">Queda máx. %
+                    <input id="hunter-max-drop" type="number" min="1" max="80" step="0.5" value="35" title="Ex.: 35 = ignora quedas maiores que 35% em 24h" />
+                  </label>
+                  <label class="lab-field" title="Volume Spot 24h mínimo em USD">Vol. mín. USD
+                    <input id="hunter-min-vol" type="number" min="0" step="10000" value="80000" title="Filtra tokens com pouco volume Spot" />
+                  </label>
+                  <label class="lab-field" title="Diferença percentual entre compra e venda no book">Spread máx. %
+                    <input id="hunter-max-spread" type="number" min="0.05" max="5" step="0.05" value="1" title="Spread alto = liquidez pior e custo maior na ida/volta" />
+                  </label>
+                </div>
+              </details>
+
+              <div class="lab-actions">
+                <button id="btn-hunter-scan" class="btn btn-primary btn-cta" type="button" title="Escaneia pares Spot em dip e ranqueia a melhor estratégia de cada um">Analisar agora</button>
+                <button id="btn-hunter-save" class="btn btn-ghost btn-cta" type="button" title="Salva filtros e valor de referência">Salvar filtros</button>
+              </div>
+
+              <div id="hunter-status" class="hunter-status off" role="status">
+                <div class="hs-title">Pronto</div>
+                <div class="hs-step">Clique em Analisar agora para ver até 10 tokens e a melhor estratégia de cada um.</div>
+              </div>
+
+              <ol class="lab-flow">
+                <li><strong>Analisar</strong> dia + semana + mês</li>
+                <li><strong>Ver</strong> o melhor horizonte por token</li>
+                <li><strong>Criar bot</strong> ou <strong>ordem</strong> manual</li>
+              </ol>
+            </article>
+          </aside>
+
+          <div class="hunter-main">
+            <article class="card">
+              <div class="card-h">
+                <h2>Top 10 do momento</h2>
+                <span id="hunter-scan-meta" class="hint" style="margin:0"></span>
+              </div>
+              <div class="table-wrap">
+                <table class="hunter-table">
+                  <thead>
+                    <tr>
+                      <th title="Par Spot OKX (BASE-QUOTE)">Token</th>
+                      <th title="Horizonte com maior aptidão preditiva (Dia / Semana / Mês)">Melhor p/</th>
+                      <th class="num" title="Último preço Spot do ticker">Preço</th>
+                      <th title="Variação negativa em 24h (dip)">Queda</th>
+                      <th class="num" title="Volume Spot negociado em 24h (USD)">Vol.</th>
+                      <th title="A=ótima · B=boa · C=aceitável · D=fraca">Liq.</th>
+                      <th class="num" title="Aptidão no melhor horizonte">Aptidão</th>
+                      <th class="num" title="Ciclos de venda / dia no melhor horizonte">Ciclos/d</th>
+                      <th title="Estratégia sugerida no melhor horizonte">Melhor estratégia</th>
+                      <th class="num" title="Retorno % do capital na simulação">Retorno</th>
+                      <th title="Ver análise, criar bot ou ordem"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="hunter-body">
+                    <tr><td class="empty" colspan="9">Clique em Analisar agora para ver oportunidades Spot.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="hint hunter-legend" title="Nota de liquidez = volume 24h + spread (bid/ask) + profundidade do livro Spot">
+                Liquidez: <strong title="Ótima — volume alto, spread apertado, livro profundo">A</strong> ótima ·
+                <strong title="Boa — custo de operar razoável">B</strong> boa ·
+                <strong title="Aceitável — liquidez mediana; cuidado com o tamanho">C</strong> aceitável ·
+                <strong title="Fraca — risco de slippage">D</strong> fraca
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-strategies" class="page">
+        <p id="strat-msg" class="flash"></p>
+        <div class="strat-layout">
+          <aside class="strat-side">
+            <article class="card strat-controls">
+              <div class="ctrl-sec">
+                <div class="ctrl-sec-h"><span class="ctrl-sec-n">1</span><strong>Token e período</strong></div>
+                <div class="lab-field">Token
+                  <div id="strat-tokens" class="lab-tokens" role="group" aria-label="Token"></div>
+                </div>
+                <div class="lab-field">Período
+                  <div class="seg" id="strat-days">
+                    <button type="button" data-days="7">7d</button>
+                    <button type="button" data-days="30" class="on">30d</button>
+                    <button type="button" data-days="60">60d</button>
+                    <button type="button" data-days="90">90d</button>
+                  </div>
+                </div>
+                <label class="lab-field">Aporte (USDT)
+                  <input id="strat-aporte" type="number" min="1" step="1" value="300" />
+                </label>
+              </div>
+              <div class="ctrl-sec">
+                <div class="ctrl-sec-h"><span class="ctrl-sec-n">2</span><strong>Filtros</strong></div>
+                <div class="lab-field">Ordenar ranking
+                  <div class="seg" id="strat-sort">
+                    <button type="button" data-sort="profit" class="on">Lucro</button>
+                    <button type="button" data-sort="assert">Assertividade</button>
+                  </div>
+                </div>
+                <div class="lab-field">Risco
+                  <div class="seg" id="strat-risk">
+                    <button type="button" data-risk="all" class="on">Todos</button>
+                    <button type="button" data-risk="baixo">Baixo</button>
+                    <button type="button" data-risk="medio">Médio</button>
+                    <button type="button" data-risk="alto">Alto</button>
+                  </div>
+                </div>
+              </div>
+              <div class="ctrl-sec ctrl-sec-actions">
+                <div class="ctrl-sec-h"><span class="ctrl-sec-n">3</span><strong>Validar</strong></div>
+                <div class="lab-actions">
+                  <button id="btn-strat-run" class="btn btn-primary btn-cta" type="button">Validar presets</button>
+                  <button id="btn-strat-best-bot" class="btn btn-ghost btn-cta" type="button" hidden>Criar melhor bot</button>
+                </div>
+                <p class="hint" style="margin:0">Compara os presets no mesmo candles Spot · ranking por lucro ou assertividade.</p>
+              </div>
+            </article>
+          </aside>
+          <div class="strat-main">
+            <div id="strat-empty" class="card lab-empty">
+              <h3>Ranking vazio</h3>
+              <p>Escolha o token à esquerda e clique em <strong>Validar presets</strong> para ver qual estratégia performou melhor.</p>
+            </div>
+            <div id="strat-results" class="strat-results" hidden>
+              <article id="strat-winner-banner" class="card lab-winner-panel strat-winner-banner" hidden>
+                <div class="lab-winner-head">
+                  <span class="lab-winner-kicker">Melhor no período</span>
+                  <div id="strat-winner-title" class="lab-winner-title">—</div>
+                  <p id="strat-winner-sub" class="hint">—</p>
+                </div>
+                <div class="lab-winner-kpis">
+                  <div class="lab-winner-kpi"><span>Retorno</span><strong id="strat-winner-ret">—</strong></div>
+                  <div class="lab-winner-kpi"><span>PnL</span><strong id="strat-winner-pnl">—</strong></div>
+                  <div class="lab-winner-kpi"><span>Assertividade</span><strong id="strat-winner-assert">—</strong></div>
+                  <div class="lab-winner-kpi"><span>Ciclos</span><strong id="strat-winner-cycles">—</strong></div>
+                </div>
+              </article>
+              <div class="kpis" id="strat-kpis" hidden>
+                <article class="card kpi"><span class="label">Melhor</span><strong id="strat-best-name">—</strong><small id="strat-best-sub" class="kpi-sub">—</small></article>
+                <article class="card kpi"><span class="label">Retorno</span><strong id="strat-best-ret">—</strong></article>
+                <article class="card kpi"><span class="label">Assertividade</span><strong id="strat-best-assert">—</strong></article>
+                <article class="card kpi"><span class="label">Ciclos</span><strong id="strat-best-cycles">—</strong></article>
+              </div>
+              <article class="card">
+                <div class="card-h">
+                  <h2>Ranking</h2>
+                  <span id="strat-rank-meta" class="hint" style="margin:0">—</span>
+                </div>
+                <div id="strat-rank" class="strat-rank"></div>
+              </article>
+            </div>
+            <article class="card strat-catalog-card">
+              <div class="card-h">
+                <div>
+                  <h2>Catálogo</h2>
+                  <p class="hint" style="margin:4px 0 0">Presets + suas estratégias · clique para detalhe, Lab ou criar bot</p>
+                </div>
+                <button id="btn-strat-new" class="btn btn-primary" type="button">Nova estratégia</button>
+              </div>
+              <div id="strat-catalog" class="strat-catalog"></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-config" class="page">
+        <article class="card form-card">
+          <div class="card-h">
+            <h2>API Keys</h2>
+            <span id="keys-pill" class="pill off">Não configurado</span>
+          </div>
+          <p class="hint" id="keys-intro">Cadastre as chaves OKX deste login (uma API Key + Secret + Passphrase). Carteira, ordens e bots usam só essa conta. Permissões: Read + Trade, sem withdraw.</p>
+          <div id="keys-accounts" class="keys-acct-bar" hidden></div>
+          <form id="keys-form" class="form">
+            <label class="full">Nome
+              <input name="account_name" placeholder="Ex.: Principal" maxlength="60" autocomplete="off" />
+            </label>
+            <label class="full">API Key
+              <input name="okx_api_key" placeholder="Cole a API Key" autocomplete="off" />
+            </label>
+            <label class="full">Secret Key
+              <input name="okx_secret_key" type="password" placeholder="Deixe em branco para manter a atual" autocomplete="new-password" />
+            </label>
+            <label class="full">Passphrase
+              <input name="okx_passphrase" type="password" placeholder="Deixe em branco para manter a atual" autocomplete="new-password" />
+            </label>
+            <label>Modo
+              <select name="okx_flag">
+                <option value="0">Live (ordens reais)</option>
+                <option value="1">Demo / simulated</option>
+              </select>
+            </label>
+            <div class="form-actions">
+              <button id="btn-keys-save" class="btn btn-primary" type="submit">Salvar chaves</button>
+              <button id="btn-keys-activate" class="btn btn-ghost" type="button" hidden>Usar esta conta</button>
+              <button id="btn-keys-test" class="btn btn-ghost" type="button">Testar conexão</button>
+              <button id="btn-keys-delete" class="btn btn-ghost" type="button" hidden>Apagar conta</button>
+              <span id="keys-msg" class="flash"></span>
+            </div>
+          </form>
+          <p id="keys-meta" class="hint"></p>
+        </article>
+        <article class="card form-card" style="margin-top:16px">
+          <div class="card-h">
+            <h2>Limites de ordem</h2>
+          </div>
+          <p class="hint">Valor mínimo e máximo por ordem (manual ou bot), convertido para USD. Padrão: $5 – $100.</p>
+          <form id="order-limits-form" class="form">
+            <label>Mínimo (USD)
+              <input name="min_usd" type="number" step="0.01" min="0.01" value="5" required />
+            </label>
+            <label>Máximo (USD)
+              <input name="max_usd" type="number" step="0.01" min="0.01" value="100" required />
+            </label>
+            <div class="form-actions full">
+              <button id="btn-limits-save" class="btn btn-primary" type="submit">Salvar limites</button>
+              <span id="limits-msg" class="flash"></span>
+            </div>
+          </form>
+        </article>
+        <article class="card form-card" style="margin-top:16px">
+          <div class="card-h">
+            <h2>Bots — intervalo e limpeza</h2>
+          </div>
+          <p class="hint">
+            O intervalo padrão vale para bots novos (cada bot ainda pode ter o próprio).
+            Execuções são só o <strong>log de decisões</strong> — ordens/trades reais ficam em outra coleção e não são apagados aqui.
+          </p>
+          <form id="bot-defaults-form" class="form">
+            <label title="Minutos entre cada checagem do bot (padrão ao criar)">Intervalo padrão (min)
+              <input name="default_interval_min" type="number" step="1" min="1" max="1440" value="30" required />
+            </label>
+            <label title="Apaga logs wait_buy/wait_sell mais antigos que isto">Limpar waits após (horas)
+              <input name="exec_cleanup_wait_hours" type="number" step="1" min="1" max="168" value="6" required />
+            </label>
+            <label title="Apaga logs de decisões já executadas após isto">Limpar execuções após (dias)
+              <input name="exec_cleanup_executed_days" type="number" step="1" min="1" max="90" value="14" required />
+            </label>
+            <div class="form-actions full">
+              <button id="btn-bot-defaults-save" class="btn btn-primary" type="submit">Salvar</button>
+              <span id="bot-defaults-msg" class="flash"></span>
+            </div>
+          </form>
+        </article>
+      </section>
+
+      <section id="page-docs" class="page">
+        <div class="docs-layout">
+          <aside class="docs-toc card" aria-label="Índice da documentação">
+            <p class="docs-toc-title">Navegar</p>
+            <a href="#/docs" data-docs-jump="docs-start">Comece aqui</a>
+            <a href="#/docs" data-docs-jump="docs-cycle">Ciclo do bot</a>
+            <a href="#/docs" data-docs-jump="docs-params">Parâmetros</a>
+            <a href="#/docs" data-docs-jump="docs-screens">Telas</a>
+            <a href="#/docs" data-docs-jump="docs-copilot">Copiloto</a>
+            <a href="#/docs" data-docs-jump="docs-hunter">Caçador</a>
+            <a href="#/docs" data-docs-jump="docs-lab">Lab e qualidade</a>
+            <a href="#/docs" data-docs-jump="docs-money">Dinheiro e chaves</a>
+            <a href="#/docs" data-docs-jump="docs-faq">Perguntas frequentes</a>
+            <a href="#/docs" data-docs-jump="docs-words">Dicionário</a>
+            <a href="#/docs" data-docs-jump="docs-risk">Limites e riscos</a>
+            <p class="docs-toc-hint">Use a busca no topo para achar qualquer termo.</p>
+          </aside>
+
+          <div class="docs-main">
+            <div class="docs-search-bar" id="docs-search-bar">
+              <label class="docs-search-label" for="docs-search">Pesquisar na documentação</label>
+              <div class="docs-search-row">
+                <input id="docs-search" type="search" placeholder="Ex.: copiloto, spread, frágil, cascata, dip, liquidez, PnL…" autocomplete="off" />
+                <button type="button" class="btn btn-ghost" id="docs-search-clear" hidden>Limpar</button>
+              </div>
+              <div class="docs-chips" id="docs-chips" aria-label="Termos populares"></div>
+              <p class="docs-search-meta" id="docs-search-meta" hidden></p>
+              <div class="docs-search-hits" id="docs-search-hits" hidden></div>
+            </div>
+
+            <article class="card docs-hero docs-section" id="docs-start" data-docs-section="start">
+              <p class="docs-kicker">Manual do OKBot · linguagem clara · pesquisável</p>
+              <h2>O que é o OKBot?</h2>
+              <p class="docs-lead">
+                É um assistente de <strong>Spot</strong> na OKX: você define regras (“se cair X%, compro; se lucrar Y%, vendo”)
+                e o bot executa no seu ritmo — sem alavancagem e sem sacar fundos (as chaves não precisam de withdraw).
+              </p>
+              <div class="docs-callout docs-callout-warn">
+                <strong>Leia isto primeiro:</strong> mercado sobe e desce. O OKBot <em>não garante lucro</em>,
+                não é consultoria e não substitui o tamanho de risco que <em>você</em> escolhe.
+                Use só capital que pode perder.
+              </div>
+              <h3 class="docs-h3">Caminho recomendado (primeira vez)</h3>
+              <ol class="docs-steps">
+                <li><strong>Configurações</strong> — API Key + Secret + Passphrase (Read + Trade) deste login Google. Teste a conexão.</li>
+                <li><strong>Limites USD</strong> — defina mínimo e máximo por ordem (ex.: $5–$100).</li>
+                <li><strong>Caçador ou Lab</strong> — escolha um token em queda (dip) e uma estratégia com qualidade ok.</li>
+                <li><strong>Criar bot</strong> — no Caçador o modal já junta análise + formulário. Revise queda %, alvo % e intervalo.</li>
+                <li><strong>Iniciar</strong> — o pré-voo valida saldo, par e um backtest rápido. Avisos “frágil” pedem revisão.</li>
+                <li><strong>Acompanhar</strong> — Carteira (saldo), Ordens (preenchimentos reais), Bot (log de decisões).</li>
+                <li><strong>Copiloto</strong> (opcional) — ícone de conversa no topo: fale «compre 20 USDT de SOL» ou «crie um bot de BTC». Sempre abre o modal para você confirmar.</li>
+              </ol>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-cycle" data-docs-section="cycle">
+              <h2>O ciclo do bot</h2>
+              <p>Pense numa receita repetível. O bot só age quando a regra fecha — e só dentro dos seus limites.</p>
+              <div class="docs-flow">
+                <div class="docs-flow-step">
+                  <span class="docs-flow-n">1</span>
+                  <strong>Referência</strong>
+                  <p>Guarda um preço de referência. Enquanto “flat” (sem posição), a referência pode subir com o mercado (trailing).</p>
+                </div>
+                <div class="docs-flow-step">
+                  <span class="docs-flow-n">2</span>
+                  <strong>Espera a queda</strong>
+                  <p>Compara o preço atual com a referência. Se caiu o % que você pediu, libera a compra. Na 1ª vez sem trades, pode comprar já no primeiro ciclo.</p>
+                </div>
+                <div class="docs-flow-step">
+                  <span class="docs-flow-n">3</span>
+                  <strong>Compra Spot</strong>
+                  <p>Ordem na OKX (respeita limites USD e saldo trading). Taxa da exchange entra no custo.</p>
+                </div>
+                <div class="docs-flow-step">
+                  <span class="docs-flow-n">4</span>
+                  <strong>Alvo e venda</strong>
+                  <p>Espera lucro alvo após taxas e uma folga de slippage. Vendeu → volta à espera. Cascata fatia etapas se estiver ligada.</p>
+                </div>
+              </div>
+              <div class="docs-callout">
+                <strong>Intervalo:</strong> padrão de bots novos = <strong>a cada 30 min</strong> (ajustável no bot ou em Configurações).
+                Menos ruído, menos logs inúteis no banco.
+                Você também pode clicar em <strong>Executar agora</strong> no bot para rodar um ciclo na hora — o log fica marcado como <strong>manual</strong>.
+              </div>
+              <div class="docs-split">
+                <div>
+                  <h3 class="docs-h3">Execuções (log)</h3>
+                  <p>Diário do bot: “ainda esperando”, “comprou”, “vendeu”. Útil para entender o raciocínio. Pode ser limpo com o tempo.</p>
+                </div>
+                <div>
+                  <h3 class="docs-h3">Ordens / trades</h3>
+                  <p>O que a OKX de fato executou. É a fonte da verdade do dinheiro. Limpar execuções <strong>não</strong> apaga ordens.</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-params" data-docs-section="params">
+              <h2>Parâmetros que você controla</h2>
+              <div class="docs-grid docs-grid-3">
+                <div class="docs-tile">
+                  <h3>Queda % (buy)</h3>
+                  <p>Quanto o preço precisa cair vs a referência para comprar. Maior = menos compras, dips mais fundos.</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Lucro alvo %</h3>
+                  <p>Quanto quer ganhar na venda após a compra (o motor já pensa em taxa + slippage).</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Taxa %</h3>
+                  <p>Estimativa da taxa Spot (taker). Se estiver otimista demais, o “lucro” na tela mente.</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Aporte</h3>
+                  <p>Valor por ciclo. <strong>0</strong> = usar saldo disponível na hora (ainda limitado pelo teto USD).</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Intervalo (min)</h3>
+                  <p>De quanto em quanto o bot “acorda” para olhar o mercado.</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Duração (dias)</h3>
+                  <p>Janela em que o bot pode rodar antes de pausar sozinho (se configurada).</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Cascata</h3>
+                  <p>Compra/venda em fatias (% por etapa). Suaviza entrada e saída; não é “mais seguro” por mágica.</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Estratégia</h3>
+                  <p>Preset (scalp, equilibrado…). Preenche queda/alvo/taxa. Você ainda pode editar na mão.</p>
+                </div>
+                <div class="docs-tile">
+                  <h3>Par Spot</h3>
+                  <p>Ex.: SOL-USDT. Tem que ser negociável na sua região/conta OKX.</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-screens" data-docs-section="screens">
+              <h2>Mapa das telas</h2>
+              <div class="docs-grid">
+                <div class="docs-tile"><h3>Carteira</h3><p>Saldos Spot. Valor, preço, 24h e PnL em USD, com equivalente em R$ na mesma célula.</p></div>
+                <div class="docs-tile"><h3>Tokens</h3><p>Pares Spot: preço, 24h, volume e liquidez A–D. Gráfico, detalhe, negociar.</p></div>
+                <div class="docs-tile"><h3>Ordens</h3><p>Compra/venda manual + histórico real da OKX (PnL de venda Spot via custo das compras).</p></div>
+                <div class="docs-tile"><h3>Bot</h3><p>Lista dos robôs, expandir execuções, editar, validar e iniciar/pausar.</p></div>
+                <div class="docs-tile"><h3>Lab</h3><p>Simulação no histórico. Sem ordem real. Compare estratégias no mesmo token.</p></div>
+                <div class="docs-tile"><h3>Caçador</h3><p>Radar de dips. Análise + criar bot no mesmo modal.</p></div>
+                <div class="docs-tile"><h3>Estratégias</h3><p>Catálogo de presets; valide e crie bot.</p></div>
+                <div class="docs-tile"><h3>Configurações</h3><p>Keys, limites USD, intervalo padrão, limpeza de logs de execução.</p></div>
+                <div class="docs-tile"><h3>Como funciona</h3><p>Esta documentação — busque termos no campo acima.</p></div>
+                <div class="docs-tile"><h3>Copiloto</h3><p>Balão no topo: fala em português, o app monta compra, venda ou bot. Nada vai à OKX sem confirmar.</p></div>
+              </div>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-copilot" data-docs-section="copilot">
+              <h2>Copiloto (linguagem natural)</h2>
+              <p>
+                O botão de conversa no canto da barra superior abre um chat. Você escreve o que quer
+                («compre 20 USDT de SOL», «venda todo o meu PEPE», «crie um bot de BTC, queda 3%, lucro 1%»)
+                e o OKBot <strong>monta a ação</strong>. Compra, venda, criar/iniciar/pausar bot só seguem
+                depois que você confirma no <strong>mesmo modal</strong> de sempre.
+              </p>
+              <div class="docs-callout docs-callout-warn">
+                <strong>Não executa sozinho.</strong> O Copiloto não dispara ordem na OKX. Sem o clique de confirmar, nada sai.
+              </div>
+              <h3 class="docs-h3">O que ele entende hoje</h3>
+              <ul class="docs-list">
+                <li>Olha PnL e carteira e responde em linguagem natural — sem lista de comandos prontos.</li>
+                <li>Perguntas abertas («como compensar meu PnL?») viram análise + 1–2 caminhos, e ele pergunta o que você escolhe.</li>
+                <li>Conversa em várias voltas: pergunta o que faltar (quanto vender, o que comprar, %).</li>
+                <li>Planos de giro: vender um token e, com o valor, comprar um ou mais outros.</li>
+                <li>Ordens a mercado ou <strong>limite</strong> («crie uma ordem de XRP», «valor alto» usa ~90% do saldo).</li>
+                <li>Criar plano/bot: queda % para comprar e lucro % para vender.</li>
+                <li>Iniciar ou pausar um bot, ver saldo, preço, abrir o Caçador.</li>
+              </ul>
+              <p>
+                Cada passo do plano abre o modal de sempre. Use «Seguir o plano passo a passo» para ir da venda às compras, uma confirmação de cada vez.
+              </p>
+              <h3 class="docs-h3">IA (Cursor)</h3>
+              <p>
+                O Copiloto usa o <strong>Cursor</strong> em modo pergunta (<code>cursor agent --mode ask</code>):
+                só interpreta o texto, não edita o projeto nem manda ordem.
+                Cole a chave em <code>CURSOR_API_KEY</code> (Dashboard Cursor → Integrations).
+                Sem chave, vale o leitor local de frases em português. O fluxo é o mesmo: propor → você confirma.
+                Alternativa: <code>LLM_PROVIDER=openai</code> + <code>LLM_API_KEY</code> (OpenAI, Groq, OpenRouter…).
+              </p>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-hunter" data-docs-section="hunter">
+              <h2>Caçador (radar de dips)</h2>
+              <p>
+                Procura tokens <strong>em queda</strong> nas 24h, com volume e spread aceitáveis, e estima um “encaixe”
+                (aptidão) para tentar vender depois — em estilos Dia / Semana / Mês.
+              </p>
+              <div class="docs-callout docs-callout-warn">
+                <strong>Pump ≠ oportunidade aqui.</strong> Token subindo forte (ex.: +40%) é excluído de propósito.
+                Volume alto não salva se a direção for alta. O Caçador não é scanner de momentum.
+              </div>
+              <h3 class="docs-h3">O que ele olha hoje</h3>
+              <ul class="docs-list">
+                <li>Queda 24h dentro da faixa (mín./máx. dos filtros).</li>
+                <li>Volume Spot (com piso mais baixo para listing novo).</li>
+                <li>Spread bid/ask e profundidade aproximada do livro.</li>
+                <li>Viabilidade vs taxa + alvo (edge).</li>
+                <li><strong>Só listar viáveis</strong> — esconde pares em que taxa + spread comem o alvo ou a ordem não cabe no livro. Se a lista vier vazia, o radar ainda mostra os dips que passaram queda/volume/spread.</li>
+                <li>Backtest rápido da melhor estratégia em Dia/Semana/Mês.</li>
+                <li>Nota de encaixe + texto em português no modal unificado de criar bot.</li>
+              </ul>
+              <h3 class="docs-h3">O que os números querem dizer</h3>
+              <ul class="docs-list">
+                <li><strong>Encaixe / aptidão</strong> — nota 0–100 (heurística): liquidez + histórico + ritmo de vendas.</li>
+                <li><strong>Recuperação %</strong> — chance estimada de reação após a queda (não é garantia).</li>
+                <li><strong>Ritmo</strong> — quantas vendas o histórico sugeriu por dia/semana/mês.</li>
+                <li><strong>Checks</strong> — checklist (queda, volume, spread, etc.).</li>
+              </ul>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-lab" data-docs-section="lab">
+              <h2>Lab, backtest e “frágil”</h2>
+              <p>
+                O Lab responde: “se eu tivesse usado estes parâmetros no passado deste token, o que teria acontecido?”
+                Usa candles históricos. <strong>Não manda ordem.</strong>
+              </p>
+              <div class="docs-callout">
+                <strong>Frágil</strong> não significa “proibido”. Significa: o retorno pode até parecer bom, mas a qualidade
+                interna (ciclos suficientes, lucro validado, assertividade) ainda não passou no critério.
+                Abra no Lab, ajuste queda/alvo ou troque a estratégia, e valide de novo.
+              </div>
+              <p>O pré-voo ao iniciar o bot também roda um backtest curto e pode mostrar o mesmo aviso — com atalho para o Lab.</p>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-money" data-docs-section="money">
+              <h2>Dinheiro, limites e chaves</h2>
+              <ul class="docs-list">
+                <li><strong>Limites USD</strong> — toda ordem (manual ou bot) passa pelo mín/máx das Configurações.</li>
+                <li><strong>Saldo trading vs funding</strong> — o bot compra do trading. Se o dinheiro estiver no funding, transfira antes.</li>
+                <li><strong>Login Google</strong> — cada e-mail entra com Google (Cognito). As chaves OKX ficam ligadas a esse e-mail.</li>
+                <li><strong>API Keys</strong> — ficam neste servidor, no seu login Google; secret não é reexibido. Prefira sem withdraw. Uma chave por e-mail.</li>
+                <li><strong>Demo vs Live</strong> — demo = ambiente simulado OKX; live = dinheiro real.</li>
+                <li><strong>PnL de vendas Spot</strong> — a OKX muitas vezes manda pnl=0 no Spot; o app estima com custo das compras (FIFO).</li>
+                <li><strong>PnL da carteira</strong> — Hoje / Semana / Mês vêm do histórico da OKX: preço da vela no início do período (Brasília) × saldo atual de cada token. 24h usa o open24h dos tickers. O gráfico de patrimônio continua com snapshots locais (a OKX não entrega esse gráfico na API). Sem vela do período aparece —.</li>
+              </ul>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-faq" data-docs-section="faq">
+              <h2>Perguntas frequentes</h2>
+              <div class="docs-faq" id="docs-faq-list">
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>Por que o Caçador não mostrou um token que subiu muito?</summary>
+                  <p>Porque ele caça <strong>queda</strong> (dip), não pump. Alta forte = fora do radar, mesmo com volume enorme.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>O que é «Só listar viáveis»? Por que a lista vinha vazia?</summary>
+                  <p>É um filtro extra: esconde pares em que taxa + spread comem o alvo ou a ordem não cabe no livro. Antes o critério era rígido demais (livro zero zerava tudo). Agora os viáveis sobem na lista; se nenhum passar, o radar ainda mostra os dips que já passaram queda, volume e spread.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>Execução e ordem são a mesma coisa?</summary>
+                  <p>Não. Execução = log da decisão do bot. Ordem/trade = o que foi à OKX. Limpar logs não apaga histórico de ordens.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>O bot garante lucro?</summary>
+                  <p>Não. Ele segue regras. Mercado pode continuar caindo depois da compra (drawdown) ou não atingir o alvo.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>O que é liquidez A, B, C, D?</summary>
+                  <p>Nota rápida de negociabilidade (volume + spread; livro quando disponível). A = melhor; D = fraca / caro escorregar.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>Intervalo de 30 min não é lento demais?</summary>
+                  <p>Para Spot com queda/alvo em %, 30 min costuma bastar e reduz ruído. Você pode baixar no bot (mín. 1 min) se quiser mais agressivo.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>Posso ter vários bots?</summary>
+                  <p>Sim, mas ao iniciar um o app pode pausar outro ativo (aviso no pré-voo). Dois bots iguais no mesmo par competem entre si.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>Como entro no OKBot?</summary>
+                  <p>Com o <strong>Google</strong>. O login passa pelo Cognito (o mesmo do QuitoPay). Cada e-mail tem as próprias chaves e bots. Sem login, a API não responde.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>Posso usar mais de uma conta OKX?</summary>
+                  <p>Não. Cada login Google tem <strong>uma</strong> conta OKX (um conjunto de API Key + Secret + Passphrase). Clique em <strong>Sair</strong> para encerrar a sessão e, no Google, escolher outro e-mail. Os dados não se misturam entre usuários.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>Por que Semana e Mês do PnL ficavam iguais a Hoje?</summary>
+                  <p>Bug antigo: o app usava o primeiro snapshot local, que costumava ser o de hoje. Agora Hoje/Semana/Mês usam o <strong>histórico de preços da OKX</strong> (vela no início de cada período). Sem histórico suficiente aparece —.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>O modal do Caçador tem duas etapas?</summary>
+                  <p>Não mais. Análise (o que significa / checklist) e formulário de criar bot ficam no <strong>mesmo</strong> modal.</p>
+                </details>
+                <details class="docs-faq-item" data-docs-faq>
+                  <summary>O Copiloto já compra e vende sozinho?</summary>
+                  <p>Não. Ele analisa PnL/carteira e sugere caminhos; cada passo abre o modal. Sem o seu OK, nada vai à OKX. Não responde com lista de comandos. Com <code>CURSOR_API_KEY</code> o texto passa pelo Cursor.</p>
+                </details>
+              </div>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-words" data-docs-section="glossary">
+              <h2>Dicionário (pesquise acima)</h2>
+              <p class="docs-note">Todos os termos abaixo entram na busca. Sinônimos também (ex.: “dip” acha “queda”).</p>
+              <div class="docs-glossary" id="docs-glossary-list"></div>
+            </article>
+
+            <article class="card docs-block docs-section" id="docs-risk" data-docs-section="risk">
+              <h2>Limites e o que o OKBot não faz</h2>
+              <ul class="docs-list">
+                <li>Não prevê o futuro com certeza (aptidão/recuperação são heurísticas).</li>
+                <li>Não protege contra crash geral (ex.: BTC em queda forte).</li>
+                <li>Não opera perpétuos / alavancagem — foco Spot.</li>
+                <li>Não move dinheiro do funding sozinho.</li>
+                <li>Não mistura dados entre logins Google — cada e-mail tem a própria chave OKX e os próprios bots.</li>
+                <li>Não substitui a sua decisão de quanto arriscar por ordem.</li>
+                <li>O Copiloto não envia ordem sozinho — só propõe; a confirmação é sua.</li>
+              </ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div id="token-chart-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-tc-close="1"></div>
+    <div class="modal-card wide rich token-chart-card" role="dialog" aria-modal="true" aria-labelledby="tc-title">
+      <header class="modal-head">
+        <div class="modal-head-main">
+          <img id="tc-icon" class="modal-token-icon" alt="" hidden />
+          <div class="modal-head-text">
+            <h2 id="tc-title">Token</h2>
+            <p id="tc-hint" class="modal-sub">Saldo e preço Spot</p>
+          </div>
+        </div>
+        <button id="tc-close" class="btn btn-ico btn-ghost modal-close" type="button" title="Fechar" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div id="tc-balance" class="chart-balance"></div>
+      <div class="tc-toolbar" id="tc-toolbar">
+        <div class="seg" id="tc-range">
+          <button type="button" data-key="1h" data-days="0.0417" data-bar="1m" title="Última 1 hora">1H</button>
+          <button type="button" data-key="24h" data-days="1" data-bar="5m">24h</button>
+          <button type="button" data-key="7d" data-days="7" data-bar="1H">7D</button>
+          <button type="button" data-key="30d" data-days="30" data-bar="4H" title="1 mês">1M</button>
+          <button type="button" data-key="90d" data-days="90" data-bar="1D" class="on">3M</button>
+          <button type="button" data-key="180d" data-days="180" data-bar="1D">6M</button>
+          <button type="button" data-key="365d" data-days="365" data-bar="1D">1A</button>
+        </div>
+        <button id="btn-tc-refresh" class="btn btn-ico btn-ghost" type="button" title="Atualizar" aria-label="Atualizar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+        </button>
+      </div>
+      <div class="chart-box tc-chart-box" id="tc-chart-box">
+        <canvas id="token-chart-canvas"></canvas>
+      </div>
+      <div id="tc-point" class="chart-point" hidden></div>
+      <p id="tc-msg" class="hint"></p>
+      <footer class="modal-foot">
+        <div class="form-actions modal-actions">
+          <button id="tc-trade" class="btn btn-primary btn-cta" type="button">Comprar / vender</button>
+          <button id="tc-cancel" class="btn btn-ghost" type="button">Fechar</button>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <aside id="copilot-panel" class="copilot-panel" hidden aria-label="Copiloto">
+    <header class="copilot-head">
+      <div>
+        <strong>Copiloto</strong>
+        <small id="copilot-mode">fala o que fazer · confirma antes</small>
+      </div>
+      <button id="copilot-close" class="btn btn-ico btn-ghost" type="button" title="Fechar" aria-label="Fechar copiloto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div id="copilot-log" class="copilot-log"></div>
+    <form id="copilot-form" class="copilot-form">
+      <input id="copilot-input" type="text" maxlength="500" autocomplete="off" placeholder="Ex.: compre 20 USDT de SOL" />
+      <button class="btn btn-primary" type="submit">Enviar</button>
+    </form>
+  </aside>
+
+  <div id="app-modal" class="modal" hidden>
+    <div class="modal-backdrop" data-close="1"></div>
+    <div class="modal-card" id="app-modal-card" role="dialog" aria-modal="true" aria-labelledby="app-modal-title">
+      <header class="modal-head">
+        <div class="modal-head-main">
+          <img id="app-modal-icon" class="modal-token-icon" alt="" hidden />
+          <div class="modal-head-text">
+            <h2 id="app-modal-title">Confirmar</h2>
+            <p id="app-modal-hint" class="modal-sub"></p>
+          </div>
+        </div>
+        <button id="app-modal-close" class="btn btn-ico btn-ghost modal-close" type="button" title="Fechar" aria-label="Fechar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </header>
+      <div id="app-modal-kpis" class="modal-kpis" hidden></div>
+      <div id="app-modal-summary" class="modal-body-block"></div>
+      <form id="app-modal-form" class="form modal-form bot-modal-form" hidden>
+        <input type="hidden" name="bot_id" />
+        <input type="hidden" name="entry_mode" id="bot-entry-mode-val" value="quote" />
+
+        <section class="bot-form-sec">
+          <header class="bot-form-sec-h">
+            <span class="bot-form-sec-n" aria-hidden="true">1</span>
+            <div>
+              <strong>Par e nome</strong>
+              <small>Token Spot e identificação do bot</small>
+            </div>
+          </header>
+          <div class="bot-form-grid bot-form-grid-2">
+            <label class="full">Par Spot
+              <input type="hidden" name="inst_id" required />
+              <div class="token-picker" id="bot-token-picker">
+                <button type="button" id="bot-token-btn" class="token-btn">
+                  <img id="bot-token-icon" class="token-icon" alt="" hidden />
+                  <span id="bot-token-label">Escolher par</span>
+                </button>
+                <div id="bot-token-menu" class="token-menu" hidden>
+                  <div class="seg quote-seg" id="bot-quote-seg"></div>
+                  <input id="bot-token-search" type="search" placeholder="Buscar BTC, ETH, SOL, BRL…" autocomplete="off" />
+                  <div id="bot-token-list" class="token-list"></div>
+                </div>
+              </div>
+            </label>
+            <label class="full">Nome
+              <input name="name" placeholder="Ex. Spot SOL" required maxlength="60" />
+            </label>
+          </div>
+        </section>
+
+        <section class="bot-form-sec">
+          <header class="bot-form-sec-h">
+            <span class="bot-form-sec-n" aria-hidden="true">2</span>
+            <div>
+              <strong>Estratégia</strong>
+              <small>Preset manual ou ranking por backtest no par</small>
+            </div>
+          </header>
+          <label class="full">Preset
+            <select name="strategy_id" id="bot-strategy-select">
+              <option value="">Manual (definir % abaixo)</option>
+            </select>
+          </label>
+          <div class="full bot-analyze-block" id="bot-analyze-block">
+            <div class="bot-analyze-head">
+              <div class="bot-analyze-copy">
+                <strong>Analisar no histórico</strong>
+                <small class="hint" id="bot-analyze-hint">Usa duração e aporte do formulário · ranking por lucro</small>
+              </div>
+              <button type="button" id="btn-bot-analyze" class="btn btn-ghost btn-bot-analyze">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="M7 14l4-4 3 3 6-7"/></svg>
+                Analisar
+              </button>
+            </div>
+            <p id="bot-analyze-msg" class="flash" hidden></p>
+            <div id="bot-analyze-results" class="bot-analyze-results" hidden></div>
+          </div>
+          <div class="full cascade-block" id="bot-cascade-block">
+            <div class="cascade-head">
+              <span class="cascade-label">Compra/venda em cascata</span>
+              <label class="toggle-switch" for="bot-cascade-enabled">
+                <input type="checkbox" id="bot-cascade-enabled" />
+                <span class="toggle-switch-ui" aria-hidden="true"></span>
+              </label>
+            </div>
+            <small class="hint cascade-hint" id="bot-cascade-hint">Compras escalonadas na queda e vendas parciais no lucro.</small>
+            <div id="bot-cascade-fields" class="cascade-fields" hidden>
+              <div class="cascade-side">
+                <span class="cascade-side-label">Compras</span>
+                <label>% por etapa
+                  <input name="cascade_buy_pct" type="number" step="1" min="5" max="100" value="20" />
+                </label>
+                <div class="cascade-chips" id="bot-cascade-buy-chips">
+                  <button type="button" data-pct="10">10%</button>
+                  <button type="button" data-pct="20">20%</button>
+                  <button type="button" data-pct="25">25%</button>
+                  <button type="button" data-pct="33">33%</button>
+                  <button type="button" data-pct="50">50%</button>
+                </div>
+                <p class="cascade-plan" id="bot-cascade-buy-plan"></p>
+                <label class="cascade-custom-toggle">
+                  <input type="checkbox" id="bot-cascade-buy-custom" />
+                  Personalizar etapas de compra
+                </label>
+                <label class="cascade-custom-field" id="bot-cascade-buy-custom-wrap" hidden>
+                  Etapas (% separados por vírgula)
+                  <input name="cascade_buy_pcts_raw" type="text" placeholder="20, 20, 20, 20, 20" autocomplete="off" />
+                </label>
+              </div>
+              <div class="cascade-side">
+                <span class="cascade-side-label">Vendas</span>
+                <label>% por etapa
+                  <input name="cascade_sell_pct" type="number" step="1" min="5" max="100" value="25" />
+                </label>
+                <div class="cascade-chips" id="bot-cascade-sell-chips">
+                  <button type="button" data-pct="10">10%</button>
+                  <button type="button" data-pct="20">20%</button>
+                  <button type="button" data-pct="25">25%</button>
+                  <button type="button" data-pct="33">33%</button>
+                  <button type="button" data-pct="50">50%</button>
+                </div>
+                <p class="cascade-plan" id="bot-cascade-sell-plan"></p>
+                <label class="cascade-custom-toggle">
+                  <input type="checkbox" id="bot-cascade-sell-custom" />
+                  Personalizar etapas de venda
+                </label>
+                <label class="cascade-custom-field" id="bot-cascade-sell-custom-wrap" hidden>
+                  Etapas (% separados por vírgula)
+                  <input name="cascade_sell_pcts_raw" type="text" placeholder="25, 25, 25, 25" autocomplete="off" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="bot-form-sec">
+          <header class="bot-form-sec-h">
+            <span class="bot-form-sec-n" aria-hidden="true">3</span>
+            <div>
+              <strong>Entrada e duração</strong>
+              <small>Aporte opcional · vazio = saldo disponível</small>
+            </div>
+          </header>
+          <div class="bot-form-grid bot-form-grid-2">
+            <label class="full">Valor de entrada
+              <div class="seg bot-entry-seg" id="bot-entry-mode">
+                <button type="button" data-entry="quote" class="on">$ / quote</button>
+                <button type="button" data-entry="base">Token</button>
+              </div>
+              <input name="quote_amount" type="number" step="any" min="0" placeholder="Ex. 20 (opcional)" />
+            </label>
+            <label class="full">Duração
+              <input type="hidden" name="run_days" id="bot-run-days-val" value="7" />
+              <div class="seg bot-days-seg" id="bot-run-days">
+                <button type="button" data-days="7" class="on">7d</button>
+                <button type="button" data-days="15">15d</button>
+                <button type="button" data-days="30">30d</button>
+                <button type="button" data-days="60">60d</button>
+                <button type="button" data-days="90">90d</button>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <details class="bot-form-sec bot-form-advanced" id="bot-form-advanced">
+          <summary class="bot-form-sec-h bot-form-advanced-sum">
+            <span class="bot-form-sec-n" aria-hidden="true">4</span>
+            <div>
+              <strong>Ajustes avançados</strong>
+              <small>Queda, alvo, taxa e intervalos — preenchidos pela estratégia</small>
+            </div>
+          </summary>
+          <div class="bot-form-advanced-body">
+            <div class="bot-form-grid bot-form-grid-params">
+              <label title="Após o 1º ciclo: compra só se o preço cair este % abaixo da referência (máxima recente). No 1º ciclo sem token, o bot compra na hora.">% queda p/ comprar
+                <input name="buy_pct" type="number" step="0.01" min="0.01" value="2" required />
+              </label>
+              <label>% lucro líquido
+                <input name="profit_target_pct" type="number" step="0.01" min="0.01" value="1" required />
+              </label>
+              <label>Taxa taker %
+                <input name="fee_rate_pct" type="number" step="0.01" min="0" value="0.10" required />
+              </label>
+              <label>Executa a cada (min)
+                <input name="interval_min" type="number" step="1" min="1" max="1440" value="30" required />
+              </label>
+              <label>Carteira a cada (min)
+                <input name="portfolio_interval_min" type="number" step="1" min="1" value="2" required />
+              </label>
+            </div>
+          </div>
+        </details>
+      </form>
+      <footer class="modal-foot">
+        <div class="form-actions modal-actions">
+          <button id="app-modal-confirm" class="btn btn-primary btn-cta" type="button">
+            <span id="app-modal-confirm-ico" class="btn-svg"></span>
+            <span id="app-modal-confirm-label">Confirmar</span>
+          </button>
+          <button id="app-modal-secondary" class="btn btn-ghost" type="button" hidden>
+            <span id="app-modal-secondary-label">Ajustar</span>
+          </button>
+          <button id="app-modal-cancel" class="btn btn-ghost" type="button">Voltar</button>
+        </div>
+        <p id="app-modal-msg" class="flash"></p>
+      </footer>
+    </div>
+  </div>
+  <script src="/static/app.js?v=okx-wallet-brl9"></script>
+</body>
+</html>

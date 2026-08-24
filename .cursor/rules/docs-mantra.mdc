@@ -1,0 +1,49 @@
+---
+description: Mantra — toda mudança de produto atualiza a tela Como funciona (#/docs)
+alwaysApply: true
+---
+
+# Mantra da documentação (OKBot)
+
+**Toda alteração de produto/comportamento/UI relevante DEVE atualizar a documentação de leigo na mesma entrega.**
+
+## Onde está a doc
+
+- Página da app: `#/docs` → `static/index.html` seção `#page-docs`
+- Estilos: classes `.docs-*` em `static/styles.css`
+- Título no menu: **Como funciona** (`data-page="docs"`)
+
+Esta página é a **fonte da verdade para humanos leigos**. Código sem doc alinhada está incompleto.
+
+## Quando atualizar (obrigatório)
+
+Se a mudança afeta qualquer um destes, edite `#page-docs` no mesmo PR/commit:
+
+- Fluxo do bot (compra/venda, intervalo, cascata, 1ª compra, PnL)
+- Caçador (filtros, dips vs pumps, modal unificado, aptidão)
+- Lab / backtest / “frágil”
+- Ordens, carteira, tokens (ex.: coluna liquidez)
+- Configurações (keys, limites USD, defaults, limpeza de execuções)
+- Novas telas, glossário, riscos ou o que o produto **não** faz
+
+## Como escrever
+
+- Português claro, mas **completo**: leigo precisa achar resposta sozinho
+- Sempre que nascer termo novo: adicionar em `DOCS_GLOSSARY` (`static/app.js`) **e** mencionar na narrativa de `#page-docs` se for conceito de produto
+- Manter FAQ (`#docs-faq`) alinhado a dúvidas reais (Caçador/pump, frágil, execuções vs ordens…)
+- Busca: sinônimos vão em `aliases` do glossário e chips em `DOCS_CHIPS`
+- Não inventar features que o código ainda não tem
+- Atualizar callouts de aviso quando o risco/comportamento mudar
+
+## Checklist do agente (antes de encerrar a tarefa)
+
+1. [ ] A mudança de produto foi refletida em `#page-docs`?
+2. [ ] Termo novo no `DOCS_GLOSSARY` (com aliases)?
+3. [ ] FAQ ainda faz sentido?
+4. [ ] Cache bust `?v=` em `index.html` se HTML/CSS/JS estático mudou?
+
+## Exceções (não exige doc)
+
+- Refactors internos sem mudança de comportamento visível
+- Fixes de tipagem/lint sem efeito no usuário
+- Dependências/lockfile sem mudança de feature
