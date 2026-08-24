@@ -1398,7 +1398,7 @@ _HUNTER_DEFAULTS: dict[str, Any] = {
     "require_tradeable": True,
     "top_n": 10,
     "strategy_id": "deep_dip",
-    "scan_interval_min": 5.0,
+    "scan_interval_min": 10.0,
     "cooldown_min": 90,
     "cache_ttl_s": 1800,
     "quote_amount": 0.0,
