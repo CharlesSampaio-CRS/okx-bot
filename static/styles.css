@@ -2335,12 +2335,9 @@ td.muted { color: var(--muted); }
   display: block;
   font-size: 11px;
   color: var(--muted);
-  margin: 2px 0 0;
-  padding: 0;
   font-weight: 400;
-  letter-spacing: 0.01em;
+  margin-top: 4px;
   line-height: 1.2;
-  min-height: 0;
 }
 .order-total-out {
   display: block;
@@ -2419,7 +2416,6 @@ td.muted { color: var(--muted); }
 .order-side-seg button[data-side="buy"].on { color: var(--up); }
 .order-side-seg button[data-side="sell"].on { color: var(--down); }
 .order-form small { color: var(--muted); font-weight: 500; }
-.order-form small.input-hint-brl { font-weight: 400; font-size: 11px; opacity: 0.8; }
 .pct-seg { width: 100%; margin-top: 8px; }
 .pct-seg button { flex: 1; height: 32px; }
 

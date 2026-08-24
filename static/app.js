@@ -5175,13 +5175,7 @@ function updateOrderEstimate() {
   }
   const minErr = belowMinText(qtyBase, unit.kind === "quote" ? sz : null);
   if (totalEl) totalEl.textContent = `${fmt(totalQuote, 2)} ${quote}`;
-  // Conversão alternativa (BRL→USD ou USD→BRL) abaixo dos inputs
-  const altTotal = toAltCcy(totalQuote, quote);
-  const brlEl = $("order-total-brl");
-  if (brlEl) {
-    brlEl.textContent = altTotal ? `≈ ${altTotal.symbol} ${fmt(altTotal.value, 2)}` : "";
-  }
-  // Alt abaixo do campo sz
+  // Conversão alternativa abaixo do campo sz
   const szBrlEl = $("order-sz-brl");
   if (szBrlEl) {
     const altSz = unit.kind === "quote" ? toAltCcy(sz, quote) : toAltCcy(totalQuote, quote);
@@ -5195,12 +5189,6 @@ function updateOrderEstimate() {
   // Ordem válida — limpa erro antigo no flash
   const msg = $("order-msg");
   if (msg && msg.classList.contains("err")) flash("order-msg", "", true);
-  // Alt abaixo do preço
-  const pxBrlEl = $("order-px-brl");
-  if (pxBrlEl) {
-    const altPx = px > 0 ? toAltCcy(px, quote) : null;
-    pxBrlEl.textContent = altPx ? `≈ ${altPx.symbol} ${fmt(altPx.value, 4)} por unidade` : "";
-  }
   const altEst = toAltCcy(totalQuote, quote);
   const altEstTxt = altEst ? ` · ${altEst.symbol} ${fmt(altEst.value, 2)}` : "";
   el.innerHTML = `≈ ${fmtQty(qtyBase)} ${base} · ${fmt(totalQuote, 2)} ${quote}${altEstTxt}`;
