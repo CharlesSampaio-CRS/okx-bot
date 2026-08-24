@@ -1391,28 +1391,6 @@ async def order_context(instId: str = "BTC-USDT") -> dict[str, Any]:
     }
 
 
-@app.get("/api/orders/{ord_id}")
-async def get_order_detail(ord_id: str, instId: str = "") -> dict[str, Any]:
-    """Busca detalhes de uma ordem na OKX (com cache até invalidar)."""
-    _require_keys()
-    oid = ord_id.strip()
-    inst = instId.strip().upper() if instId else None
-    cache_key = f"order_detail|{oid}"
-    hit = db.get_api_cache(cache_key, ttl_s=3600)
-    if hit:
-        return {"order": hit["payload"], "cached": True}
-    try:
-        order = await hub.okx.get_order(inst or "", oid)
-        if order:
-            enriched = await hub.okx.enrich_orders([order])
-            result = db.attach_origins(enriched)[0] if enriched else order
-            db.set_api_cache(cache_key, result, kind="order_detail")
-            return {"order": result, "cached": False}
-        raise HTTPException(404, "Ordem não encontrada")
-    except OkxError as exc:
-        _raise_okx(exc)
-
-
 @app.get("/api/orders/open")
 async def open_orders(instId: Optional[str] = None) -> dict[str, Any]:
     _require_keys()
@@ -1633,6 +1611,28 @@ async def cancel_all_orders(instId: Optional[str] = None) -> dict[str, Any]:
         )
     _hist_cache_clear()
     return result
+
+
+@app.get("/api/orders/{ord_id}")
+async def get_order_detail(ord_id: str, instId: str = "") -> dict[str, Any]:
+    """Busca detalhes de uma ordem na OKX (com cache até invalidar)."""
+    _require_keys()
+    oid = ord_id.strip()
+    inst = instId.strip().upper() if instId else None
+    cache_key = f"order_detail|{oid}"
+    hit = db.get_api_cache(cache_key, ttl_s=3600)
+    if hit:
+        return {"order": hit["payload"], "cached": True}
+    try:
+        order = await hub.okx.get_order(inst or "", oid)
+        if order:
+            enriched = await hub.okx.enrich_orders([order])
+            result = db.attach_origins(enriched)[0] if enriched else order
+            db.set_api_cache(cache_key, result, kind="order_detail")
+            return {"order": result, "cached": False}
+        raise HTTPException(404, "Ordem não encontrada")
+    except OkxError as exc:
+        _raise_okx(exc)
 
 
 @app.get("/api/instruments/check")
