@@ -4082,3 +4082,15 @@ body.login-locked #btn-copilot { display: none !important; }
   font-weight: 500;
   color: var(--text);
 }
+
+
+/* ===== Config info rows ===== */
+.cfg-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+.cfg-info-row span { color: var(--muted); }
+.cfg-info-row strong { color: var(--text); font-weight: 600; }

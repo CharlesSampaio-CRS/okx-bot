@@ -1068,6 +1068,7 @@ _BOT_DEFAULTS: dict[str, Any] = {
     "default_interval_min": 30.0,
     "exec_cleanup_wait_hours": 6.0,
     "exec_cleanup_executed_days": 14.0,
+    "portfolio_interval_min": 2.0,
 }
 
 

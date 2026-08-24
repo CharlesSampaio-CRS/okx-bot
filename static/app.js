@@ -4029,6 +4029,48 @@ async function loadConfig() {
   } catch (err) {
     flash("bot-defaults-msg", err.message, false);
   }
+  // Hunter settings
+  try {
+    const hData = await api("/api/hunter");
+    const hs = hData.settings || {};
+    const hForm = $("hunter-settings-form");
+    if (hForm) {
+      $("cfg-hunter-enabled").checked = !!hs.enabled;
+      hForm.scan_interval_min.value = hs.scan_interval_min || 10;
+      hForm.quote.value = hs.quote || "USDT";
+      hForm.min_drop_pct.value = hs.min_drop_pct || 1.5;
+      hForm.max_drop_pct.value = hs.max_drop_pct || 35;
+      hForm.min_vol_usd.value = hs.min_vol_usd || 80000;
+      hForm.max_spread_pct.value = hs.max_spread_pct || 1;
+      hForm.top_n.value = hs.top_n || 10;
+    }
+  } catch (_) {}
+  // Portfolio interval (usa bot-defaults ou endpoint dedicado)
+  try {
+    const pForm = $("portfolio-settings-form");
+    if (pForm) {
+      const st = await api("/api/status");
+      pForm.portfolio_interval_min.value = st.portfolio_interval_min || 2;
+    }
+  } catch (_) {}
+  // LLM status
+  try {
+    const llm = await api("/api/assistant/status");
+    $("cfg-llm-provider").textContent = llm.provider || "—";
+    $("cfg-llm-model").textContent = llm.mode || "—";
+    $("cfg-llm-status").textContent = llm.llm ? "Ativo" : "Desligado (modo local)";
+    $("cfg-llm-status").style.color = llm.llm ? "var(--up)" : "var(--muted)";
+  } catch (_) {}
+  // Push notification status
+  if ("Notification" in window) {
+    const perm = Notification.permission;
+    $("cfg-push-status").textContent = perm === "granted" ? "Permitido" : perm === "denied" ? "Bloqueado" : "Não configurado";
+    $("cfg-push-status").style.color = perm === "granted" ? "var(--up)" : perm === "denied" ? "var(--down)" : "var(--muted)";
+    $("btn-push-permission").hidden = perm === "granted";
+  } else {
+    $("cfg-push-status").textContent = "Não suportado";
+    $("btn-push-permission").hidden = true;
+  }
 }
 
 function walletAssetsFiltered(assets) {
@@ -4385,6 +4427,58 @@ $("bot-defaults-form")?.addEventListener("submit", async (ev) => {
     );
   } catch (err) {
     flash("bot-defaults-msg", err.message, false);
+  }
+});
+
+// Hunter settings form
+$("hunter-settings-form")?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const form = ev.currentTarget;
+  const payload = {
+    enabled: $("cfg-hunter-enabled")?.checked || false,
+    scan_interval_min: Number(form.scan_interval_min.value),
+    quote: form.quote.value,
+    min_drop_pct: Number(form.min_drop_pct.value),
+    max_drop_pct: Number(form.max_drop_pct.value),
+    min_vol_usd: Number(form.min_vol_usd.value),
+    max_spread_pct: Number(form.max_spread_pct.value),
+    top_n: Number(form.top_n.value),
+  };
+  try {
+    await api("/api/hunter/settings", { method: "PUT", body: JSON.stringify(payload) });
+    flash("hunter-settings-msg", "Configurações do Hunter salvas", true);
+  } catch (err) {
+    flash("hunter-settings-msg", err.message, false);
+  }
+});
+
+// Portfolio interval form
+$("portfolio-settings-form")?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const form = ev.currentTarget;
+  const val = Number(form.portfolio_interval_min.value);
+  if (!val || val < 1 || val > 60) {
+    flash("portfolio-settings-msg", "Intervalo entre 1 e 60 min", false);
+    return;
+  }
+  try {
+    await api("/api/settings/bot-defaults", {
+      method: "PUT",
+      body: JSON.stringify({ portfolio_interval_min: val }),
+    });
+    flash("portfolio-settings-msg", `Intervalo do portfolio: ${val} min`, true);
+  } catch (err) {
+    flash("portfolio-settings-msg", err.message, false);
+  }
+});
+
+// Push notification permission button
+$("btn-push-permission")?.addEventListener("click", async () => {
+  if ("Notification" in window) {
+    const perm = await Notification.requestPermission();
+    $("cfg-push-status").textContent = perm === "granted" ? "Permitido" : perm === "denied" ? "Bloqueado" : "Não configurado";
+    $("cfg-push-status").style.color = perm === "granted" ? "var(--up)" : perm === "denied" ? "var(--down)" : "var(--muted)";
+    $("btn-push-permission").hidden = perm === "granted";
   }
 });
 

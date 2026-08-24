@@ -299,6 +299,7 @@ async def status(include: str = "") -> dict[str, Any]:
         "wallet_error": port.get("last_error"),
         "usdt_brl": port.get("usdt_brl"),
         "okx_flag": credentials.get("okx_flag"),
+        "portfolio_interval_min": db.portfolio_interval_min(),
         "cache": api_cache.cache_status(),
         **db.get_order_limits(),
     }

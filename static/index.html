@@ -883,6 +883,90 @@
             </div>
           </form>
         </article>
+
+        <article class="card form-card" style="margin-top:16px">
+          <div class="card-h">
+            <h2>Caçador (Hunter)</h2>
+          </div>
+          <p class="hint">Controle o scan automático de dips e seus filtros padrão.</p>
+          <form id="hunter-settings-form" class="form">
+            <label class="full">
+              <span class="toggle-wrap">
+                <input type="checkbox" id="cfg-hunter-enabled" name="enabled" />
+                <span class="toggle-slider"></span>
+                <span class="toggle-label">Auto-scan</span>
+              </span>
+            </label>
+            <label title="Intervalo entre scans automáticos">Intervalo de scan (min)
+              <input name="scan_interval_min" type="number" step="1" min="1" max="60" value="10" required />
+            </label>
+            <label>Quote
+              <select name="quote">
+                <option value="USDT">USDT</option>
+                <option value="USDC">USDC</option>
+                <option value="BRL">BRL</option>
+              </select>
+            </label>
+            <label>Queda mín. (%)
+              <input name="min_drop_pct" type="number" step="0.1" min="0.5" max="50" value="1.5" required />
+            </label>
+            <label>Queda máx. (%)
+              <input name="max_drop_pct" type="number" step="0.1" min="1" max="80" value="35" required />
+            </label>
+            <label>Vol. mín. (USD)
+              <input name="min_vol_usd" type="number" step="1000" min="0" value="80000" required />
+            </label>
+            <label>Spread máx. (%)
+              <input name="max_spread_pct" type="number" step="0.1" min="0.05" max="5" value="1" required />
+            </label>
+            <label>Top N candidatos
+              <input name="top_n" type="number" step="1" min="1" max="10" value="10" required />
+            </label>
+            <div class="form-actions full">
+              <button id="btn-hunter-settings-save" class="btn btn-primary" type="submit">Salvar</button>
+              <span id="hunter-settings-msg" class="flash"></span>
+            </div>
+          </form>
+        </article>
+
+        <article class="card form-card" style="margin-top:16px">
+          <div class="card-h">
+            <h2>Portfolio</h2>
+          </div>
+          <p class="hint">Intervalo de atualização da carteira (em minutos). Afeta o refresh automático dos saldos e PnL.</p>
+          <form id="portfolio-settings-form" class="form">
+            <label>Intervalo de refresh (min)
+              <input name="portfolio_interval_min" type="number" step="1" min="1" max="60" value="2" required />
+            </label>
+            <div class="form-actions full">
+              <button id="btn-portfolio-settings-save" class="btn btn-primary" type="submit">Salvar</button>
+              <span id="portfolio-settings-msg" class="flash"></span>
+            </div>
+          </form>
+        </article>
+
+        <article class="card form-card" style="margin-top:16px">
+          <div class="card-h">
+            <h2>Copiloto (IA)</h2>
+          </div>
+          <p class="hint">Status da integração com LLM para linguagem natural.</p>
+          <div class="form" style="padding:12px 0">
+            <div class="cfg-info-row"><span>Provider:</span> <strong id="cfg-llm-provider">—</strong></div>
+            <div class="cfg-info-row"><span>Modelo:</span> <strong id="cfg-llm-model">—</strong></div>
+            <div class="cfg-info-row"><span>Status:</span> <strong id="cfg-llm-status">—</strong></div>
+          </div>
+        </article>
+
+        <article class="card form-card" style="margin-top:16px">
+          <div class="card-h">
+            <h2>Notificações</h2>
+          </div>
+          <p class="hint">Controle as notificações do navegador (push).</p>
+          <div class="form" style="padding:12px 0">
+            <div class="cfg-info-row"><span>Browser Push:</span> <strong id="cfg-push-status">—</strong></div>
+            <button id="btn-push-permission" class="btn btn-ghost" type="button">Permitir notificações</button>
+          </div>
+        </article>
       </section>
 
       <section id="page-docs" class="page">

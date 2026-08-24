@@ -226,6 +226,7 @@ class BotDefaultsUpdate(BaseModel):
     default_interval_min: Optional[float] = Field(default=None, ge=1, le=1440)
     exec_cleanup_wait_hours: Optional[float] = Field(default=None, ge=1, le=168)
     exec_cleanup_executed_days: Optional[float] = Field(default=None, ge=1, le=90)
+    portfolio_interval_min: Optional[float] = Field(default=None, ge=1, le=60)
 
 
 class HunterSettingsUpdate(BaseModel):
