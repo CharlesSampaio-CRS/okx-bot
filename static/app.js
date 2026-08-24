@@ -7619,15 +7619,17 @@ async function runCopilotAction(a, fromPlan = false) {
     try {
       await refreshOrderContext(inst);
       setOrderFormLoading(false);
-      setOrderSide(p.side);
+      // Setar tipo de ordem ANTES do side para que syncOrderForm funcione correto
       const form = $("order-form");
       if (form) {
         form.ord_type.value = p.ord_type || "market";
+        form.ord_type.dispatchEvent(new Event("change"));
+        if (p.px != null && form.px) form.px.value = p.px;
         form.tgt_ccy.value = p.tgt_ccy || (p.side === "buy" ? "quote_ccy" : "base_ccy");
         form.sz.value = p.sz;
-        if (p.px != null && form.px) form.px.value = p.px;
-        form.ord_type.dispatchEvent(new Event("change"));
       }
+      // Setar side POR ÚLTIMO — syncOrderForm dentro dele vai usar ord_type já correto
+      setOrderSide(p.side);
       syncOrderForm();
       openOrderModal(buildOrderPayload());
     } catch (err) {
