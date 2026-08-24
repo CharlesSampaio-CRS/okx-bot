@@ -7763,12 +7763,175 @@ async function initCopilot() {
   });
 }
 
+// ===== Sistema de Notificações =====
+
+let notifItems = [];
+let notifUnread = 0;
+let notifPanelOpen = false;
+let notifSSE = null;
+
+function showToast({ icon, title, body, tone }) {
+  const container = $("toast-container");
+  if (!container) return;
+  const el = document.createElement("div");
+  el.className = `toast ${tone || "info"}`;
+  el.innerHTML = `
+    <span class="toast-icon">${icon || "🔔"}</span>
+    <div class="toast-body">
+      <p class="toast-title">${title || ""}</p>
+      <p class="toast-msg">${body || ""}</p>
+    </div>
+    <button class="toast-close" aria-label="Fechar">&times;</button>
+  `;
+  el.querySelector(".toast-close").addEventListener("click", (e) => {
+    e.stopPropagation();
+    removeToast(el);
+  });
+  el.addEventListener("click", () => {
+    toggleNotifPanel(true);
+    removeToast(el);
+  });
+  container.appendChild(el);
+  // Auto-dismiss após 6s
+  setTimeout(() => removeToast(el), 6000);
+}
+
+function removeToast(el) {
+  if (!el || !el.parentNode) return;
+  el.classList.add("removing");
+  setTimeout(() => el.remove(), 300);
+}
+
+function updateNotifBadge() {
+  const badge = $("notif-badge");
+  if (!badge) return;
+  if (notifUnread > 0) {
+    badge.textContent = notifUnread > 99 ? "99+" : String(notifUnread);
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+}
+
+function renderNotifList() {
+  const list = $("notif-list");
+  if (!list) return;
+  if (!notifItems.length) {
+    list.innerHTML = '<p class="notif-empty">Nenhuma notificação</p>';
+    return;
+  }
+  list.innerHTML = notifItems.slice(0, 30).map(n => {
+    const ago = timeAgo(n.ts);
+    const unread = n.read ? "" : " unread";
+    return `<div class="notif-item${unread}" data-id="${n.id}">
+      <span class="notif-item-icon">${n.icon || "🔔"}</span>
+      <div class="notif-item-body">
+        <div class="notif-item-title">${n.title || ""}</div>
+        <div class="notif-item-msg">${n.body || ""}</div>
+      </div>
+      <span class="notif-item-time">${ago}</span>
+    </div>`;
+  }).join("");
+}
+
+function timeAgo(ts) {
+  if (!ts) return "";
+  const diff = Math.floor(Date.now() / 1000 - ts);
+  if (diff < 60) return "agora";
+  if (diff < 3600) return `${Math.floor(diff / 60)}min`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
+
+function toggleNotifPanel(forceOpen) {
+  notifPanelOpen = forceOpen !== undefined ? !!forceOpen : !notifPanelOpen;
+  const panel = $("notif-panel");
+  if (panel) panel.hidden = !notifPanelOpen;
+  if (notifPanelOpen) renderNotifList();
+}
+
+async function markAllNotifRead() {
+  try {
+    const res = await api("/api/notifications/read", { method: "POST", body: JSON.stringify({}) });
+    notifUnread = res.unread || 0;
+    notifItems.forEach(n => n.read = true);
+    updateNotifBadge();
+    renderNotifList();
+  } catch (_) {}
+}
+
+function handleNotification(notif) {
+  notifItems.unshift(notif);
+  if (notifItems.length > 50) notifItems.length = 50;
+  if (!notif.read) notifUnread++;
+  updateNotifBadge();
+  if (notifPanelOpen) renderNotifList();
+  // Toast
+  showToast({ icon: notif.icon, title: notif.title, body: notif.body, tone: notif.tone });
+  // Browser push (se app em background)
+  if (document.hidden && Notification.permission === "granted") {
+    try {
+      new Notification(notif.title || "OKBot", {
+        body: notif.body || "",
+        icon: "/static/img/logo-192.png",
+        tag: notif.id,
+      });
+    } catch (_) {}
+  }
+}
+
+function connectNotifSSE() {
+  if (notifSSE) { try { notifSSE.close(); } catch (_) {} }
+  notifSSE = new EventSource("/api/notifications/stream");
+  notifSSE.addEventListener("notification", (ev) => {
+    try {
+      const notif = JSON.parse(ev.data);
+      handleNotification(notif);
+    } catch (_) {}
+  });
+  notifSSE.addEventListener("error", () => {
+    // Reconectar após 10s
+    setTimeout(() => {
+      if (!document.hidden) connectNotifSSE();
+    }, 10000);
+  });
+}
+
+async function initNotifications() {
+  // Carregar histórico
+  try {
+    const data = await api("/api/notifications");
+    notifItems = data.items || [];
+    notifUnread = data.unread || 0;
+    updateNotifBadge();
+  } catch (_) {}
+  // Conectar SSE
+  connectNotifSSE();
+  // Event listeners
+  $("btn-notifications")?.addEventListener("click", () => toggleNotifPanel());
+  $("notif-read-all")?.addEventListener("click", () => markAllNotifRead());
+  // Fechar painel ao clicar fora
+  document.addEventListener("click", (e) => {
+    if (notifPanelOpen && !e.target.closest("#notif-panel") && !e.target.closest("#btn-notifications")) {
+      toggleNotifPanel(false);
+    }
+  });
+  // Pedir permissão de browser push
+  if ("Notification" in window && Notification.permission === "default") {
+    // Pedir após 5s para não ser intrusivo
+    setTimeout(() => {
+      Notification.requestPermission();
+    }, 5000);
+  }
+}
+
 async function boot() {
   initTheme();
   initNavCollapse();
   const ok = await initAuth();
   if (!ok) return;
   await initCopilot();
+  await initNotifications();
   await ensureFxRate();
   await refresh();
   showPage(pageId());

@@ -1554,6 +1554,15 @@ async def create_order(body: OrderCreate) -> dict[str, Any]:
     order["origin"] = "user"
     order["origin_label"] = "Usuário"
     _hist_cache_clear()
+    # Notificação de ordem criada/preenchida
+    from .notifications import notify_order_filled
+    notify_order_filled(
+        current_user_id.get() or "_global",
+        inst, body.side,
+        float(order.get("fill_sz") or order.get("sz") or body.sz),
+        float(order.get("avg_px") or order.get("px") or 0),
+        quote=inst.split("-")[1] if "-" in inst else "USDT",
+    )
     return order
 
 
@@ -1569,6 +1578,14 @@ async def cancel_order(body: OrderCancel) -> dict[str, Any]:
     else:
         db.add_event(f"ordem cancelada {body.ord_id}")
     _hist_cache_clear()
+    # Notificação de cancelamento
+    from .notifications import notify_order_cancelled
+    notify_order_cancelled(
+        current_user_id.get() or "_global",
+        body.inst_id.strip().upper(),
+        "",
+        reason="já executada" if result.get("already_gone") else "cancelada pelo usuário",
+    )
     return result
 
 
@@ -1821,3 +1838,63 @@ async def health_okx() -> dict[str, Any]:
         return info
     except OkxError as exc:
         raise HTTPException(502, str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
+# Notificações em tempo real (SSE)
+# ---------------------------------------------------------------------------
+
+from starlette.responses import StreamingResponse
+from .notifications import hub as notif_hub
+
+
+@app.get("/api/notifications/stream")
+async def notifications_stream(request: Request):
+    """SSE stream de notificações para o usuário autenticado."""
+    user_id = current_user_id.get() or "_global"
+    queue = notif_hub.subscribe(user_id)
+
+    async def event_generator():
+        try:
+            # Heartbeat inicial
+            yield "event: connected\ndata: {}\n\n"
+            while True:
+                # Esperar notificação ou timeout (heartbeat a cada 30s)
+                try:
+                    notif = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    yield notif.to_sse()
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                # Checar se o cliente desconectou
+                if await request.is_disconnected():
+                    break
+        finally:
+            notif_hub.unsubscribe(user_id, queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/notifications")
+async def notifications_list(limit: int = 30) -> dict[str, Any]:
+    """Histórico de notificações recentes."""
+    user_id = current_user_id.get() or "_global"
+    items = notif_hub.history(user_id, limit=limit)
+    unread = notif_hub.unread_count(user_id)
+    return {"items": items, "unread": unread}
+
+
+@app.post("/api/notifications/read")
+async def notifications_mark_read(body: dict[str, Any] = {}) -> dict[str, Any]:
+    """Marcar notificações como lidas."""
+    user_id = current_user_id.get() or "_global"
+    notif_id = body.get("id")  # None = marcar todas
+    notif_hub.mark_read(user_id, notif_id)
+    return {"ok": True, "unread": notif_hub.unread_count(user_id)}

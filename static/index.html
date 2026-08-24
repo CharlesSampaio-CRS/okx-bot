@@ -112,6 +112,20 @@
           <span class="mode-text">Live</span>
         </span>
         <span id="run-label" class="pill off" title="Status do bot">Parado</span>
+        <button id="btn-notifications" class="btn btn-ico btn-ghost" type="button" title="Notificações" aria-label="Notificações">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span id="notif-badge" class="notif-badge" hidden>0</span>
+        </button>
+        <div id="notif-panel" class="notif-panel" hidden>
+          <header class="notif-panel-head">
+            <strong>Notificações</strong>
+            <button id="notif-read-all" class="btn btn-ghost btn-xs" type="button">Marcar lidas</button>
+          </header>
+          <div id="notif-list" class="notif-list"><p class="notif-empty">Nenhuma notificação</p></div>
+        </div>
         <button id="btn-copilot" class="btn btn-ico btn-ghost" type="button" title="Copiloto" aria-label="Copiloto" aria-expanded="false" aria-controls="copilot-panel">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/>
@@ -1463,6 +1477,7 @@
       </footer>
     </div>
   </div>
+  <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
   <script src="/static/app.js?v=okx-wallet-brl9"></script>
 </body>
 </html>

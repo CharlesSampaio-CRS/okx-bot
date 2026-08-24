@@ -569,6 +569,21 @@ class HunterWatcher:
             "mode": "radar",
         }
         db.set_api_cache(cache_key, payload, kind="hunter_scan")
+        # Notificar novos dips (não vistos no scan anterior)
+        prev_insts = set()
+        if self.last_scan and self.last_scan.get("candidates"):
+            prev_insts = {str(c.get("inst_id") or "") for c in self.last_scan["candidates"]}
+        if candidates:
+            from .notifications import notify_hunter_alert
+            from .context import current_user_id
+            uid = current_user_id.get() or "_global"
+            for c in candidates[:3]:  # Max 3 alertas por scan
+                cid = str(c.get("inst_id") or "")
+                if cid and cid not in prev_insts:
+                    drop = abs(float(c.get("chg24") or 0))
+                    price = float(c.get("last") or 0)
+                    if drop > 0 and price > 0:
+                        notify_hunter_alert(uid, cid, drop, price)
         self.last_scan = payload
         self.last_error = None
         return payload

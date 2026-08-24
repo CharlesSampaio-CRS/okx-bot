@@ -318,9 +318,15 @@ class TradingEngine:
                 except OkxError as exc:
                     self.last_error = str(exc)
                     self._log(f"OKX: {exc}", "error", force=True)
+                    from .notifications import notify_bot_error
+                    from .context import current_user_id
+                    notify_bot_error(current_user_id.get() or "_global", cfg.name or self.bot_id, str(exc))
                 except Exception as exc:
                     self.last_error = str(exc)
                     self._log(f"erro: {exc}", "error", force=True)
+                    from .notifications import notify_bot_error
+                    from .context import current_user_id
+                    notify_bot_error(current_user_id.get() or "_global", cfg.name or self.bot_id, str(exc))
                 try:
                     await asyncio.wait_for(self._stop.wait(), timeout=cfg.poll_interval)
                 except asyncio.TimeoutError:
@@ -1027,6 +1033,10 @@ class TradingEngine:
             f"compra fill {fill_qty} @ {fill_avg} | posição {qty} @ méd. {avg_px} | custo {cost:.4f} | fee ≈ {fill_fee_usdt:.4f}",
             force=True,
         )
+        # Notificação de compra do bot
+        from .notifications import notify_bot_trade
+        from .context import current_user_id
+        notify_bot_trade(current_user_id.get() or "_global", cfg.name or self.bot_id, "buy", cfg.inst_id, fill_qty, fill_avg)
 
     async def _sell(self, cfg, price: float, pos: Position, sell_qty: float | None = None) -> None:
         base, quote = parse_inst(cfg.inst_id)
@@ -1107,3 +1117,7 @@ class TradingEngine:
             + (f" | restam {remaining_qty:g} {base}" if remaining_qty > dust else " | flat"),
             force=True,
         )
+        # Notificação de venda do bot
+        from .notifications import notify_bot_trade
+        from .context import current_user_id
+        notify_bot_trade(current_user_id.get() or "_global", cfg.name or self.bot_id, "sell", cfg.inst_id, acc, avg_px)
