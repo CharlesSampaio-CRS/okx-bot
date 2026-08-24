@@ -282,9 +282,11 @@
               </label>
               <label id="order-px-wrap">Preço
                 <input name="px" type="number" step="any" min="0" />
+                <small id="order-px-brl" class="input-hint-brl"></small>
               </label>
               <label id="order-total-wrap" class="order-total-wrap">Valor da ordem
                 <output id="order-total-value" class="order-total-out">—</output>
+                <small id="order-total-brl" class="input-hint-brl"></small>
               </label>
               <label id="order-tgt-wrap">Informar em
                 <select name="tgt_ccy">
@@ -294,6 +296,7 @@
               </label>
               <label class="full"><span id="order-sz-label">Valor</span> <small id="order-sz-unit"></small>
                 <input name="sz" type="number" step="any" min="0" required placeholder="Ex. 49" />
+                <small id="order-sz-brl" class="input-hint-brl"></small>
                 <div class="seg pct-seg" id="order-pct">
                   <button type="button" data-pct="10">10%</button>
                   <button type="button" data-pct="25">25%</button>

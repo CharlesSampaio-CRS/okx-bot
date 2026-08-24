@@ -5161,13 +5161,17 @@ function updateOrderEstimate() {
   }
   const minErr = belowMinText(qtyBase, unit.kind === "quote" ? sz : null);
   if (totalEl) totalEl.textContent = `${fmt(totalQuote, 2)} ${quote}`;
-  // Adicionar BRL ao total
+  // Adicionar BRL ao total (discreto abaixo do input)
   const totalBrlEst = toBrl(totalQuote, quote);
   const brlEl = $("order-total-brl");
   if (brlEl) {
     brlEl.textContent = totalBrlEst != null ? `≈ R$ ${fmt(totalBrlEst, 2)}` : "";
-  } else if (totalEl && totalBrlEst != null) {
-    totalEl.textContent = `${fmt(totalQuote, 2)} ${quote} (R$ ${fmt(totalBrlEst, 2)})`;
+  }
+  // BRL abaixo do campo sz
+  const szBrlEl = $("order-sz-brl");
+  if (szBrlEl) {
+    const szBrl = unit.kind === "quote" ? toBrl(sz, quote) : toBrl(totalQuote, quote);
+    szBrlEl.textContent = szBrl != null && szBrl > 0 ? `≈ R$ ${fmt(szBrl, 2)}` : "";
   }
   if (minErr) {
     if (el) el.innerHTML = `<span class="err">${minErr}</span>`;
@@ -5177,6 +5181,12 @@ function updateOrderEstimate() {
   // Ordem válida — limpa erro antigo no flash
   const msg = $("order-msg");
   if (msg && msg.classList.contains("err")) flash("order-msg", "", true);
+  // BRL abaixo do preço
+  const pxBrlEl = $("order-px-brl");
+  if (pxBrlEl) {
+    const pxBrl = px > 0 ? toBrl(px, quote) : null;
+    pxBrlEl.textContent = pxBrl != null ? `≈ R$ ${fmt(pxBrl, 4)} por unidade` : "";
+  }
   const estBrl = toBrl(totalQuote, quote);
   const estBrlTxt = estBrl != null ? ` · R$ ${fmt(estBrl, 2)}` : "";
   el.innerHTML = `≈ ${fmtQty(qtyBase)} ${base} · ${fmt(totalQuote, 2)} ${quote}${estBrlTxt}`;
@@ -5848,9 +5858,13 @@ function factsHtml(rows) {
   if (!rows || !rows.length) return "";
   return `<div class="modal-facts-grid">${rows.map(([k, v, cls]) => {
     const tone = cls ? ` ${cls}` : "";
+    // Suportar BRL como segunda linha (separado por \n)
+    const parts = String(v).split("\n");
+    const main = escHtml(parts[0]);
+    const sub = parts[1] ? `<small class="modal-fact-sub">${escHtml(parts[1])}</small>` : "";
     return `<div class="modal-fact">
       <span class="modal-fact-label">${escHtml(k)}</span>
-      <strong class="modal-fact-value${tone}">${escHtml(v)}</strong>
+      <strong class="modal-fact-value${tone}">${main}</strong>${sub}
     </div>`;
   }).join("")}</div>`;
 }
@@ -6782,8 +6796,8 @@ function openOrderModal(payload) {
   // BRL conversions
   const totalBrl = total != null ? toBrl(total, quote) : null;
   const feeBrl = fee != null ? toBrl(fee, quote) : null;
-  const totalBrlTxt = totalBrl != null ? ` (R$ ${fmt(totalBrl, 2)})` : "";
-  const feeBrlTxt = feeBrl != null ? ` ≈ R$ ${fmt(feeBrl, 2)}` : "";
+  const totalBrlTxt = totalBrl != null ? `\n≈ R$ ${fmt(totalBrl, 2)}` : "";
+  const feeBrlTxt = feeBrl != null ? ` · R$ ${fmt(feeBrl, 2)}` : "";
   const rows = [
     ["Lado", payload.side === "buy" ? "Compra" : "Venda", payload.side],
     ["Par", payload.inst_id],
@@ -6803,11 +6817,11 @@ function openOrderModal(payload) {
       const pnl = total - (fee || 0) - cost;
       const pnlPct = cost ? (pnl / cost) * 100 : null;
       const pnlBrl = toBrl(pnl, quote);
-      const pnlBrlTxt = pnlBrl != null ? ` (R$ ${fmt(pnlBrl, 2)})` : "";
+      const pnlBrlTxt = pnlBrl != null ? `\n≈ R$ ${fmt(pnlBrl, 2)}` : "";
       rows.push(["Custo méd.", `${fmt(avg, 4)} ${quote}`]);
       rows.push([
         "PnL est.",
-        `${fmt(pnl, 2)} ${quote}${pnlBrlTxt}${pnlPct != null ? ` (${fmt(pnlPct, 2)}%)` : ""}`,
+        `${fmt(pnl, 2)} ${quote} (${pnlPct != null ? `${fmt(pnlPct, 2)}%` : "—"})${pnlBrlTxt}`,
         pnl > 0 ? "buy" : pnl < 0 ? "sell" : "",
       ]);
     } else {
