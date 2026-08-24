@@ -4094,3 +4094,19 @@ body.login-locked #btn-copilot { display: none !important; }
 }
 .cfg-info-row span { color: var(--muted); }
 .cfg-info-row strong { color: var(--text); font-weight: 600; }
+
+
+/* ===== Config page grid ===== */
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.config-grid .config-full { grid-column: 1 / -1; }
+.config-grid .card { margin: 0; }
+.cfg-status-grid { padding: 12px 0; }
+
+@media (max-width: 768px) {
+  .config-grid { grid-template-columns: 1fr; }
+}
