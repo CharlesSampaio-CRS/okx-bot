@@ -2352,7 +2352,7 @@ td.muted { color: var(--muted); }
   color: var(--text);
 }
 .order-total-wrap:has(.order-total-out:not(:empty)) .order-total-out:not(:empty) { background: var(--surface); }
-#order-meta { margin-top: 4px; }
+#order-meta { margin-top: 4px; line-height: 1.6; }
 .order-summary {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

@@ -5233,17 +5233,42 @@ function updateOrderMeta() {
   const ctx = orderContext;
   if (!ctx) return;
   const quote = ctx.quote || "USDT";
-  const bits = [];
+  const base = ctx.base || "";
+  const lines = [];
+  // Linha 1: Último preço
+  if (ctx.last != null) lines.push(`Último ${fmtPx(ctx.last)}`);
+  // Linha 2: Saldo (base ou quote dependendo do lado)
   if (orderSide === "sell") {
-    bits.push(`Saldo ${fmtQty(ctx.base_avail)} ${ctx.base || ""}`);
-    if (ctx.base_funding) bits.push(`funding ${fmtQty(ctx.base_funding)}`);
+    const saldoTxt = `Saldo ${fmtQty(ctx.base_avail)} ${base}`;
+    const saldoBrl = toBrl(ctx.base_avail * (ctx.last || 0), quote);
+    lines.push(saldoBrl != null ? `${saldoTxt} (R$ ${fmt(saldoBrl, 2)})` : saldoTxt);
   } else {
-    bits.push(`Saldo ${fmt(ctx.quote_avail, 4)} ${quote}`);
-    if (ctx.quote_funding) bits.push(`funding ${fmt(ctx.quote_funding, 4)} ${quote}`);
+    const saldoTxt = `Saldo ${fmt(ctx.quote_avail, 4)} ${quote}`;
+    const saldoBrl = toBrl(ctx.quote_avail, quote);
+    lines.push(saldoBrl != null ? `${saldoTxt} (R$ ${fmt(saldoBrl, 2)})` : saldoTxt);
   }
-  if (ctx.last != null) bits.unshift(`Último ${fmtPx(ctx.last)}`);
-  bits.push(orderLimitsHintText());
-  $("order-meta").textContent = bits.filter(Boolean).join(" · ");
+  // Linha 3: Custo médio e break-even (se venda)
+  if (orderSide === "sell") {
+    const avg = sellAvgInQuote(quote);
+    if (avg && avg > 0) {
+      const be = avg * 1.001;
+      lines.push(`Custo médio ${fmt(avg, 4)} · Break-even ${fmt(be, 4)}`);
+      // Linha 4: UPL estimado
+      if (ctx.last != null && ctx.base_avail > 0) {
+        const upl = (ctx.last - avg) * ctx.base_avail;
+        const uplPct = ((ctx.last - avg) / avg) * 100;
+        const uplBrl = toBrl(upl, quote);
+        const uplBrlTxt = uplBrl != null ? ` (R$ ${fmt(uplBrl, 2)})` : "";
+        const cls = upl >= 0 ? "up" : "down";
+        lines.push(`UPL ${fmt(upl, 2)} ${quote}${uplBrlTxt} (${fmt(uplPct, 2)}%)`);
+      }
+    }
+  }
+  // Limites de ordem
+  const limHint = orderLimitsHintText();
+  if (limHint) lines.push(limHint);
+  const el = $("order-meta");
+  el.innerHTML = lines.map(l => `<span>${l}</span>`).join("<br>");
 }
 
 function setOrderSide(side) {
