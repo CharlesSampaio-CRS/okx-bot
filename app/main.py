@@ -1618,16 +1618,40 @@ async def get_order_detail(ord_id: str, instId: str = "") -> dict[str, Any]:
     """Busca detalhes de uma ordem na OKX (com cache até invalidar)."""
     _require_keys()
     oid = ord_id.strip()
-    inst = instId.strip().upper() if instId else None
+    inst = instId.strip().upper() if instId else ""
     cache_key = f"order_detail|{oid}"
     hit = db.get_api_cache(cache_key, ttl_s=3600)
     if hit:
         return {"order": hit["payload"], "cached": True}
     try:
-        order = await hub.okx.get_order(inst or "", oid)
-        if order:
-            enriched = await hub.okx.enrich_orders([order])
-            result = db.attach_origins(enriched)[0] if enriched else order
+        from .okx_client import normalize_order
+        # Se não temos instId, tentar achar nas pending/history recentes
+        if not inst:
+            try:
+                pending = await hub.okx.list_pending()
+                for o in pending:
+                    if str(o.get("ordId") or "") == oid:
+                        inst = str(o.get("instId") or "")
+                        break
+            except Exception:
+                pass
+        if not inst:
+            # Tenta buscar do histórico 7d
+            try:
+                hist = await hub.okx.list_history(limit=100, days=7)
+                for o in hist:
+                    if str(o.get("ordId") or o.get("ord_id") or "") == oid:
+                        inst = str(o.get("instId") or o.get("inst_id") or "")
+                        break
+            except Exception:
+                pass
+        if not inst:
+            raise HTTPException(400, "instId necessário para buscar ordem na OKX")
+        raw = await hub.okx.get_order(inst, oid)
+        if raw:
+            normalized = normalize_order(raw)
+            enriched = await hub.okx.enrich_orders([normalized])
+            result = db.attach_origins(enriched)[0] if enriched else normalized
             db.set_api_cache(cache_key, result, kind="order_detail")
             return {"order": result, "cached": False}
         raise HTTPException(404, "Ordem não encontrada")
