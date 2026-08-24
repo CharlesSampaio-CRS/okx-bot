@@ -7145,8 +7145,6 @@ function hunterSettingsFromForm() {
     require_tradeable: !!$("hunter-tradeable")?.checked,
     validate_days: 90,
     top_n: 10,
-    enabled: false,
-    auto_rotate: false,
   };
 }
 
