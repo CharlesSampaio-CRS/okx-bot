@@ -647,13 +647,18 @@
               </details>
 
               <div class="lab-actions">
-                <button id="btn-hunter-scan" class="btn btn-primary btn-cta" type="button" title="Escaneia pares Spot em dip e ranqueia a melhor estratégia de cada um">Analisar agora</button>
+                <label class="toggle-wrap" title="Ativar scan automático (a cada X minutos)">
+                  <input type="checkbox" id="hunter-auto-toggle" />
+                  <span class="toggle-slider"></span>
+                  <span class="toggle-label" id="hunter-auto-label">Auto-scan desligado</span>
+                </label>
+                <button id="btn-hunter-scan" class="btn btn-ghost btn-cta" type="button" title="Escanear uma vez agora">Escanear agora</button>
                 <button id="btn-hunter-save" class="btn btn-ghost btn-cta" type="button" title="Salva filtros e valor de referência">Salvar filtros</button>
               </div>
 
               <div id="hunter-status" class="hunter-status off" role="status">
                 <div class="hs-title">Pronto</div>
-                <div class="hs-step">Clique em Analisar agora para ver até 10 tokens e a melhor estratégia de cada um.</div>
+                <div class="hs-step">Ative o auto-scan ou clique em Escanear agora para ver tokens em dip.</div>
               </div>
 
               <ol class="lab-flow">

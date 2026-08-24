@@ -7526,6 +7526,13 @@ async function loadHunter({ forceScan = false } = {}) {
     const data = await api("/api/hunter");
     lastHunter = data;
     applyHunterSettingsToForm(data.settings);
+    // Sincronizar toggle auto-scan
+    const toggle = $("hunter-auto-toggle");
+    const label = $("hunter-auto-label");
+    if (toggle) {
+      toggle.checked = !!data.settings?.enabled;
+      if (label) label.textContent = data.settings?.enabled ? "Auto-scan ligado" : "Auto-scan desligado";
+    }
     if (forceScan || !data.last_scan?.candidates?.length) {
       const scan = await api(`/api/hunter/scan${forceScan ? "?refresh=1" : ""}`);
       renderHunterCandidates(scan);
@@ -7551,6 +7558,24 @@ $("btn-hunter-scan")?.addEventListener("click", () => {
     statusText: "Analisando dia, semana e mês…",
     busyLabel: "Analisando…",
   });
+});
+
+// Toggle auto-scan
+$("hunter-auto-toggle")?.addEventListener("change", async (ev) => {
+  const enabled = ev.target.checked;
+  const label = $("hunter-auto-label");
+  try {
+    if (enabled) {
+      await api("/api/hunter/start", { method: "POST" });
+      if (label) label.textContent = "Auto-scan ligado";
+    } else {
+      await api("/api/hunter/stop", { method: "POST" });
+      if (label) label.textContent = "Auto-scan desligado";
+    }
+  } catch (err) {
+    ev.target.checked = !enabled;
+    flash("hunter-msg", err?.message || "Erro ao alterar auto-scan", false);
+  }
 });
 
 $("btn-hunter-save")?.addEventListener("click", async () => {
