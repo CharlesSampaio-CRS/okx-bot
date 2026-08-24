@@ -4098,15 +4098,9 @@ body.login-locked #btn-copilot { display: none !important; }
 
 /* ===== Config page grid ===== */
 .config-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: start;
+  max-width: 640px;
 }
-.config-grid .config-full { grid-column: 1 / -1; }
 .config-grid .card { margin: 0; }
-.cfg-status-grid { padding: 12px 0; }
-
-@media (max-width: 768px) {
-  .config-grid { grid-template-columns: 1fr; }
-}
