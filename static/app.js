@@ -7595,22 +7595,19 @@ async function runCopilotAction(a, fromPlan = false) {
   }
   if (type === "navigate" && a.hash) {
     location.hash = a.hash;
-    if (!fromPlan) setCopilotOpen(false);
+    // Manter copilot aberto para continuar a conversa
     return;
   }
   if (type === "create_bot") {
     copilotPlanArmed = !!fromPlan;
-    if (!fromPlan) setCopilotOpen(false);
     await openCreateBotModal(a.seed || {});
     return;
   }
   if (type === "start_bot" && a.bot_id) {
-    setCopilotOpen(false);
     await openStartBotModal(a.bot_id);
     return;
   }
   if (type === "stop_bot" && a.bot_id) {
-    setCopilotOpen(false);
     openStopBotModal(a.bot_id);
     return;
   }
