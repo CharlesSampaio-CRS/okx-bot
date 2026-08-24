@@ -488,6 +488,20 @@ function toBrl(amount, currency = "USD") {
   return null;
 }
 
+// Conversão alternativa: se quote é BRL → mostra USD; se USD/USDT → mostra BRL
+function toAltCcy(amount, quoteCcy) {
+  if (amount == null || Number.isNaN(Number(amount))) return null;
+  const q = String(quoteCcy || "USDT").toUpperCase();
+  const n = Number(amount);
+  if (q === "BRL" && usdtBrlRate && usdtBrlRate > 0) {
+    return { value: n / usdtBrlRate, symbol: "US$", code: "USD" };
+  }
+  if ((q === "USD" || q === "USDT" || q === "USDC") && usdtBrlRate) {
+    return { value: n * usdtBrlRate, symbol: "R$", code: "BRL" };
+  }
+  return null;
+}
+
 function setKpiSub(el, amount, currency = "USD") {
   if (!el) return;
   const brl = toBrl(amount, currency);
@@ -5161,17 +5175,17 @@ function updateOrderEstimate() {
   }
   const minErr = belowMinText(qtyBase, unit.kind === "quote" ? sz : null);
   if (totalEl) totalEl.textContent = `${fmt(totalQuote, 2)} ${quote}`;
-  // Adicionar BRL ao total (discreto abaixo do input)
-  const totalBrlEst = toBrl(totalQuote, quote);
+  // Conversão alternativa (BRL→USD ou USD→BRL) abaixo dos inputs
+  const altTotal = toAltCcy(totalQuote, quote);
   const brlEl = $("order-total-brl");
   if (brlEl) {
-    brlEl.textContent = totalBrlEst != null ? `≈ R$ ${fmt(totalBrlEst, 2)}` : "";
+    brlEl.textContent = altTotal ? `≈ ${altTotal.symbol} ${fmt(altTotal.value, 2)}` : "";
   }
-  // BRL abaixo do campo sz
+  // Alt abaixo do campo sz
   const szBrlEl = $("order-sz-brl");
   if (szBrlEl) {
-    const szBrl = unit.kind === "quote" ? toBrl(sz, quote) : toBrl(totalQuote, quote);
-    szBrlEl.textContent = szBrl != null && szBrl > 0 ? `≈ R$ ${fmt(szBrl, 2)}` : "";
+    const altSz = unit.kind === "quote" ? toAltCcy(sz, quote) : toAltCcy(totalQuote, quote);
+    szBrlEl.textContent = altSz && altSz.value > 0 ? `≈ ${altSz.symbol} ${fmt(altSz.value, 2)}` : "";
   }
   if (minErr) {
     if (el) el.innerHTML = `<span class="err">${minErr}</span>`;
@@ -5181,15 +5195,15 @@ function updateOrderEstimate() {
   // Ordem válida — limpa erro antigo no flash
   const msg = $("order-msg");
   if (msg && msg.classList.contains("err")) flash("order-msg", "", true);
-  // BRL abaixo do preço
+  // Alt abaixo do preço
   const pxBrlEl = $("order-px-brl");
   if (pxBrlEl) {
-    const pxBrl = px > 0 ? toBrl(px, quote) : null;
-    pxBrlEl.textContent = pxBrl != null ? `≈ R$ ${fmt(pxBrl, 4)} por unidade` : "";
+    const altPx = px > 0 ? toAltCcy(px, quote) : null;
+    pxBrlEl.textContent = altPx ? `≈ ${altPx.symbol} ${fmt(altPx.value, 4)} por unidade` : "";
   }
-  const estBrl = toBrl(totalQuote, quote);
-  const estBrlTxt = estBrl != null ? ` · R$ ${fmt(estBrl, 2)}` : "";
-  el.innerHTML = `≈ ${fmtQty(qtyBase)} ${base} · ${fmt(totalQuote, 2)} ${quote}${estBrlTxt}`;
+  const altEst = toAltCcy(totalQuote, quote);
+  const altEstTxt = altEst ? ` · ${altEst.symbol} ${fmt(altEst.value, 2)}` : "";
+  el.innerHTML = `≈ ${fmtQty(qtyBase)} ${base} · ${fmt(totalQuote, 2)} ${quote}${altEstTxt}`;
 }
 
 function sumByQuote(orders, key) {
@@ -6793,19 +6807,19 @@ function openOrderModal(payload) {
   const fee = total != null ? total * 0.001 : null;
   const availQuote = Number(orderContext?.quote_avail || 0);
   const availBase = Number(orderContext?.base_avail || 0);
-  // BRL conversions
-  const totalBrl = total != null ? toBrl(total, quote) : null;
-  const feeBrl = fee != null ? toBrl(fee, quote) : null;
-  const totalBrlTxt = totalBrl != null ? `\n≈ R$ ${fmt(totalBrl, 2)}` : "";
-  const feeBrlTxt = feeBrl != null ? ` · R$ ${fmt(feeBrl, 2)}` : "";
+  // Conversão alternativa (par BRL → mostra USD, par USDT → mostra BRL)
+  const altTotal = total != null ? toAltCcy(total, quote) : null;
+  const altFee = fee != null ? toAltCcy(fee, quote) : null;
+  const totalAltTxt = altTotal ? `\n≈ ${altTotal.symbol} ${fmt(altTotal.value, 2)}` : "";
+  const feeAltTxt = altFee ? ` · ${altFee.symbol} ${fmt(altFee.value, 2)}` : "";
   const rows = [
     ["Lado", payload.side === "buy" ? "Compra" : "Venda", payload.side],
     ["Par", payload.inst_id],
     ["Tipo", TYPE_LABEL[payload.ord_type] || payload.ord_type],
-    ["Valor", total != null ? `${fmt(total, 2)} ${quote}${totalBrlTxt}` : "—"],
+    ["Valor", total != null ? `${fmt(total, 2)} ${quote}${totalAltTxt}` : "—"],
     ["Quantidade", `${fmt(qtyBase, 8)} ${base}`],
     ["Preço", payload.ord_type === "market" ? `Mercado ≈ ${fmt(px, 6)}` : fmt(payload.px, 6)],
-    ["Taxa est.", fee != null ? `≈ ${fmt(fee, 4)} ${quote}${feeBrlTxt} (0,10%)` : "—"],
+    ["Taxa est.", fee != null ? `≈ ${fmt(fee, 4)} ${quote}${feeAltTxt} (0,10%)` : "—"],
     payload.side === "buy"
       ? ["Saldo trading", `${fmt(availQuote, 4)} ${quote}`, availQuote + 1e-8 >= (total || 0) ? "buy" : "sell"]
       : ["Saldo trading", `${fmtQty(availBase)} ${base}`, availBase + 1e-12 >= (qtyBase || 0) ? "buy" : "sell"],
@@ -6816,12 +6830,12 @@ function openOrderModal(payload) {
       const cost = avg * qtyBase;
       const pnl = total - (fee || 0) - cost;
       const pnlPct = cost ? (pnl / cost) * 100 : null;
-      const pnlBrl = toBrl(pnl, quote);
-      const pnlBrlTxt = pnlBrl != null ? `\n≈ R$ ${fmt(pnlBrl, 2)}` : "";
+      const pnlAlt = toAltCcy(pnl, quote);
+      const pnlAltTxt = pnlAlt ? `\n≈ ${pnlAlt.symbol} ${fmt(pnlAlt.value, 2)}` : "";
       rows.push(["Custo méd.", `${fmt(avg, 4)} ${quote}`]);
       rows.push([
         "PnL est.",
-        `${fmt(pnl, 2)} ${quote} (${pnlPct != null ? `${fmt(pnlPct, 2)}%` : "—"})${pnlBrlTxt}`,
+        `${fmt(pnl, 2)} ${quote} (${pnlPct != null ? `${fmt(pnlPct, 2)}%` : "—"})${pnlAltTxt}`,
         pnl > 0 ? "buy" : pnl < 0 ? "sell" : "",
       ]);
     } else {
