@@ -101,6 +101,17 @@ def _llm_system(ctx: str = "", draft: dict[str, Any] | None = None) -> str:
         "NÃO diga apenas 'Qual token?'. Mostre as opções reais.\n\n"
         "QUANDO O USUÁRIO PERGUNTAR 'QUAIS MEUS TOKENS' OU 'MINHA CARTEIRA':\n"
         "intent=wallet. No reply inclua a lista formatada com: Token | Quantidade | Valor USD.\n\n"
+        "QUANDO O USUÁRIO PEDIR PARA 'COMPENSAR PERDA' OU 'ZERAR PNL' OU 'VENDER PARA RECUPERAR':\n"
+        "1. Identifique o token no prejuízo (UPL negativo) usando os dados do contexto.\n"
+        "2. Calcule o preço de break-even: break_even = custo_medio * (1 + taxa_venda).\n"
+        "   Taxa de venda OKX spot ≈ 0.1% (0.001). Então: break_even = custo_medio * 1.001.\n"
+        "3. Se o UPL% é -10%, para zerar: preço_venda = custo_medio * 1.001.\n"
+        "   Para COMPENSAR 100% da perda vendendo TUDO: preço = custo_medio * 1.001.\n"
+        "   Para compensar vendendo PARCIAL: preço precisa ser MAIOR (break_even / fração_vendida).\n"
+        "4. SEMPRE use intent=sell, ord_type=limit, px=break_even calculado, amount_kind=all (ou base).\n"
+        "5. No reply, explique: custo médio, preço break-even, e que a ordem limite só executa se o preço subir.\n"
+        "6. Se o preço atual está ABAIXO do break-even, avise que a ordem ficará pendente até o preço subir.\n"
+        "7. Pergunte se quer vender tudo ou uma parte (e ajuste o preço se parcial).\n\n"
         f"Contexto da conta (USE ESSES DADOS NAS RESPOSTAS):\n{ctx or 'indisponível'}\n\n"
         f"Rascunho atual do plano:\n{draft_txt}"
     )
@@ -813,6 +824,8 @@ async def _account_context(okx, port: dict[str, Any] | None = None) -> dict[str,
                 "avail": a.get("avail") if a.get("avail") is not None else a.get("total_bal"),
                 "eq_usd": eq,
                 "spot_upl": upl,
+                "spot_upl_ratio": a.get("spot_upl_ratio"),
+                "avg_px": a.get("avg_px"),
                 "chg24": a.get("chg24"),
             }
         )
@@ -847,9 +860,15 @@ async def _account_context(okx, port: dict[str, Any] | None = None) -> dict[str,
         eq = float(a.get("eq_usd") or 0)
         upl = a.get("spot_upl")
         chg = a.get("chg24")
+        avg_px = a.get("avg_px")
+        upl_ratio = a.get("spot_upl_ratio")
         line = f"{ccy}: qty={avail:g}, valor≈US${eq:.2f}"
+        if avg_px is not None:
+            line += f", custo_medio={float(avg_px):g}"
         if upl is not None:
             line += f", UPL={_fmt_usd(upl)}"
+        if upl_ratio is not None:
+            line += f", UPL%={float(upl_ratio)*100:.2f}%"
         if chg is not None:
             line += f", 24h={float(chg):+.1f}%"
         lines.append(line)
@@ -1382,12 +1401,35 @@ async def handle(
         if ord_type not in {"market", "limit", "post_only", "ioc", "fok"}:
             ord_type = "limit" if parsed.get("ord_type") else "market"
         px = parsed.get("px")
+
+        # Break-even: se é venda e tem custo médio, calcular preço de compensação
+        avg_px_entry = None
+        if side == "sell" and base:
+            for a in (snap.get("assets") or []):
+                if str(a.get("ccy") or "").upper() == base and a.get("avg_px"):
+                    avg_px_entry = float(a["avg_px"])
+                    break
+        # Se LLM sugeriu preço = break-even ou se é uma venda sem preço com custo médio disponível
+        if side == "sell" and avg_px_entry and not px:
+            # Calcular break-even: custo_medio * (1 + fee_rate)
+            fee_rate = 0.001  # 0.1% taker fee OKX
+            break_even = avg_px_entry * (1 + fee_rate)
+            px = break_even
+            ord_type = "limit"  # Forçar limite para break-even
+            if not amount and avail_base > 0:
+                amount = avail_base
+                kind = "base"
+
         if ord_type != "market" and not px and last:
             px = last * (0.999 if side == "buy" else 1.001)
         if not amount:
+            # Informar break-even se disponível
+            be_info = ""
+            if avg_px_entry:
+                be_info = f" Custo médio: {avg_px_entry:g}. Break-even (c/ taxa): {avg_px_entry * 1.001:.4f}."
             ask = "quanto em USDT" if side == "buy" else "quantos tokens (ou «tudo»)"
             return {
-                "reply": reply or f"Entendi {side} de {inst}. Falta o tamanho: {ask}. Tenho {avail_quote:g} {quote} e {avail_base:g} {base}.",
+                "reply": reply or f"Entendi {side} de {inst}. Falta o tamanho: {ask}. Tenho {avail_quote:g} {quote} e {avail_base:g} {base}.{be_info}",
                 "mode": mode,
                 "actions": [{"type": "navigate", "hash": "#/orders", "label": "Abrir Ordens"}],
             }
@@ -1395,6 +1437,22 @@ async def handle(
         verb = "Compra" if side == "buy" else "Venda"
         unit = quote if kind == "quote" else base
         tipo = "a mercado" if ord_type == "market" else f"limite @ {float(px):g}" if px else "limite"
+        # Reply mais informativo para vendas de compensação
+        if not reply and side == "sell" and avg_px_entry and px:
+            diff_pct = ((float(px) - (last or 0)) / (last or 1)) * 100 if last else 0
+            if last and float(px) > last:
+                reply = (
+                    f"{verb} {tipo} de {float(amount):g} {unit} em {inst}.\n"
+                    f"Custo médio: {avg_px_entry:g} | Break-even: {float(px):.4f} (c/ taxa 0.1%)\n"
+                    f"Preço atual: {last:g} — a ordem fica pendente até XRP subir {diff_pct:.1f}%.\n"
+                    "Confirme no modal — só executa quando o preço atingir o limite."
+                )
+            else:
+                reply = (
+                    f"{verb} {tipo} de {float(amount):g} {unit} em {inst}.\n"
+                    f"Custo médio: {avg_px_entry:g} | Preço de venda: {float(px):.4f}\n"
+                    "Confirme no modal."
+                )
         reply = reply or (
             f"{verb} {tipo} de {float(amount):g} {unit} em {inst}. "
             "Confirme no modal — eu não envio a ordem sozinho."
