@@ -5161,6 +5161,14 @@ function updateOrderEstimate() {
   }
   const minErr = belowMinText(qtyBase, unit.kind === "quote" ? sz : null);
   if (totalEl) totalEl.textContent = `${fmt(totalQuote, 2)} ${quote}`;
+  // Adicionar BRL ao total
+  const totalBrlEst = toBrl(totalQuote, quote);
+  const brlEl = $("order-total-brl");
+  if (brlEl) {
+    brlEl.textContent = totalBrlEst != null ? `≈ R$ ${fmt(totalBrlEst, 2)}` : "";
+  } else if (totalEl && totalBrlEst != null) {
+    totalEl.textContent = `${fmt(totalQuote, 2)} ${quote} (R$ ${fmt(totalBrlEst, 2)})`;
+  }
   if (minErr) {
     if (el) el.innerHTML = `<span class="err">${minErr}</span>`;
     return;
@@ -5169,7 +5177,9 @@ function updateOrderEstimate() {
   // Ordem válida — limpa erro antigo no flash
   const msg = $("order-msg");
   if (msg && msg.classList.contains("err")) flash("order-msg", "", true);
-  el.innerHTML = `≈ ${fmtQty(qtyBase)} ${base}`;
+  const estBrl = toBrl(totalQuote, quote);
+  const estBrlTxt = estBrl != null ? ` · R$ ${fmt(estBrl, 2)}` : "";
+  el.innerHTML = `≈ ${fmtQty(qtyBase)} ${base} · ${fmt(totalQuote, 2)} ${quote}${estBrlTxt}`;
 }
 
 function sumByQuote(orders, key) {
@@ -6769,14 +6779,19 @@ function openOrderModal(payload) {
   const fee = total != null ? total * 0.001 : null;
   const availQuote = Number(orderContext?.quote_avail || 0);
   const availBase = Number(orderContext?.base_avail || 0);
+  // BRL conversions
+  const totalBrl = total != null ? toBrl(total, quote) : null;
+  const feeBrl = fee != null ? toBrl(fee, quote) : null;
+  const totalBrlTxt = totalBrl != null ? ` (R$ ${fmt(totalBrl, 2)})` : "";
+  const feeBrlTxt = feeBrl != null ? ` ≈ R$ ${fmt(feeBrl, 2)}` : "";
   const rows = [
     ["Lado", payload.side === "buy" ? "Compra" : "Venda", payload.side],
     ["Par", payload.inst_id],
     ["Tipo", TYPE_LABEL[payload.ord_type] || payload.ord_type],
-    ["Valor", total != null ? `${fmt(total, 2)} ${quote}` : "—"],
+    ["Valor", total != null ? `${fmt(total, 2)} ${quote}${totalBrlTxt}` : "—"],
     ["Quantidade", `${fmt(qtyBase, 8)} ${base}`],
     ["Preço", payload.ord_type === "market" ? `Mercado ≈ ${fmt(px, 6)}` : fmt(payload.px, 6)],
-    ["Taxa est.", fee != null ? `≈ ${fmt(fee, 4)} ${quote} (0,10%)` : "—"],
+    ["Taxa est.", fee != null ? `≈ ${fmt(fee, 4)} ${quote}${feeBrlTxt} (0,10%)` : "—"],
     payload.side === "buy"
       ? ["Saldo trading", `${fmt(availQuote, 4)} ${quote}`, availQuote + 1e-8 >= (total || 0) ? "buy" : "sell"]
       : ["Saldo trading", `${fmtQty(availBase)} ${base}`, availBase + 1e-12 >= (qtyBase || 0) ? "buy" : "sell"],
@@ -6787,10 +6802,12 @@ function openOrderModal(payload) {
       const cost = avg * qtyBase;
       const pnl = total - (fee || 0) - cost;
       const pnlPct = cost ? (pnl / cost) * 100 : null;
+      const pnlBrl = toBrl(pnl, quote);
+      const pnlBrlTxt = pnlBrl != null ? ` (R$ ${fmt(pnlBrl, 2)})` : "";
       rows.push(["Custo méd.", `${fmt(avg, 4)} ${quote}`]);
       rows.push([
         "PnL est.",
-        `${fmt(pnl, 2)} ${quote}${pnlPct != null ? ` (${fmt(pnlPct, 2)}%)` : ""}`,
+        `${fmt(pnl, 2)} ${quote}${pnlBrlTxt}${pnlPct != null ? ` (${fmt(pnlPct, 2)}%)` : ""}`,
         pnl > 0 ? "buy" : pnl < 0 ? "sell" : "",
       ]);
     } else {
