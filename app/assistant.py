@@ -1441,8 +1441,12 @@ async def handle(
         avg_px_entry = None
         if side == "sell" and base:
             for a in (snap.get("assets") or []):
-                if str(a.get("ccy") or "").upper() == base and a.get("avg_px"):
-                    avg_px_entry = float(a["avg_px"])
+                if str(a.get("ccy") or "").upper() == base:
+                    if a.get("avg_px"):
+                        avg_px_entry = float(a["avg_px"])
+                    # Fallback: usar avail do snap se OKX não retornou
+                    if avail_base <= 0 and float(a.get("avail") or 0) > 0:
+                        avail_base = float(a["avail"])
                     break
         # Se LLM sugeriu preço = break-even ou se é uma venda sem preço com custo médio disponível
         if side == "sell" and avg_px_entry and not px:
