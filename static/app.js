@@ -7640,10 +7640,6 @@ async function loadHunter({ forceScan = false } = {}) {
 
 $("btn-hunter-scan")?.addEventListener("click", () => {
   withRefresh("btn-hunter-scan", async () => {
-    await api("/api/hunter/settings", {
-      method: "PUT",
-      body: JSON.stringify(hunterSettingsFromForm()),
-    });
     await loadHunter({ forceScan: true });
   }, {
     statusId: "hunter-msg",
@@ -7660,6 +7656,11 @@ $("hunter-auto-toggle")?.addEventListener("change", async (ev) => {
     if (enabled) {
       await api("/api/hunter/start", { method: "POST" });
       if (label) label.textContent = "Auto-scan ligado";
+      // Executar scan imediato ao ativar
+      try {
+        const scan = await api("/api/hunter/scan?refresh=1");
+        renderHunterCandidates(scan);
+      } catch (_) {}
     } else {
       await api("/api/hunter/stop", { method: "POST" });
       if (label) label.textContent = "Auto-scan desligado";
