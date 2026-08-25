@@ -7985,7 +7985,7 @@ document.addEventListener("click", async (ev) => {
   if (avatarBtn) {
     const emoji = avatarBtn.dataset.avatar;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="80">${emoji}</text></svg>`;
-    const dataUri = `data:image/svg+xml;base64,${btoa(svg)}`;
+    const dataUri = `data:image/svg+xml,${encodeURIComponent(svg)}`;
     try {
       await api("/api/auth/profile", { method: "PUT", body: JSON.stringify({ picture: dataUri }) });
       $("profile-photo").src = dataUri;
