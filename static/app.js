@@ -7642,12 +7642,9 @@ async function loadHunter({ forceScan = false, preserveToggle = false } = {}) {
 
 $("btn-hunter-scan")?.addEventListener("click", () => {
   withRefresh("btn-hunter-scan", async () => {
-    // Salvar filtros antes de escanear
-    await api("/api/hunter/settings", {
-      method: "PUT",
-      body: JSON.stringify(hunterSettingsFromForm()),
-    });
-    await loadHunter({ forceScan: true, preserveToggle: true });
+    const scan = await api("/api/hunter/scan?refresh=1");
+    renderHunterCandidates(scan);
+    if (lastHunter) renderHunterStatus({ ...lastHunter, last_scan: scan });
   }, {
     statusId: "hunter-msg",
     statusText: "Analisando dia, semana e mês…",
