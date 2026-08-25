@@ -4179,9 +4179,9 @@ function renderWallet(data) {
     const brl = walletAssetBrl(a);
     const uplBrl = a.spot_upl == null ? null : toBrl(Number(a.spot_upl), "USD");
     const lastBrl = lastToBrl(a);
-    const chgUsd = a.chg24 == null || a.eq_usd == null
+    const chgUsd = a.chg24 == null || a.last == null
       ? null
-      : Number(a.eq_usd) * Number(a.chg24) / 100;
+      : Number(a.last) * Number(a.chg24) / 100;
     const chgBrl = chgUsd == null ? null : toBrl(chgUsd, "USD");
     const extra = [];
     if (a.funding_bal > 0) extra.push(`funding ${fmt(a.funding_bal, 6)}`);
