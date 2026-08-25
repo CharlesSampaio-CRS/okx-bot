@@ -152,10 +152,6 @@ hunter = HunterWatcher(hub.okx, hub)
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     db.init_db()
-    # Limpar sessões anteriores ao reiniciar (força re-login)
-    if auth.enabled():
-        from .mongo import col as _col
-        _col("sessions").delete_many({})
     if not auth.enabled():
         credentials.load()
         aid = credentials.active_id()
