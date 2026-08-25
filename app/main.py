@@ -283,7 +283,10 @@ async def update_profile(request: Request) -> dict[str, Any]:
     user = auth.user_from_request(request)
     if not user:
         raise HTTPException(401, "não autenticado")
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
     update: dict[str, Any] = {}
     name = str(body.get("name") or "").strip()
     picture = str(body.get("picture") or "").strip()
@@ -296,10 +299,16 @@ async def update_profile(request: Request) -> dict[str, Any]:
         update["picture"] = picture
         update["picture_edited"] = True
     if not update:
-        raise HTTPException(400, "nada para atualizar")
+        raise HTTPException(400, "nada para atualizar — envie name ou picture")
     from .mongo import col as _col
-    _col("users").update_one({"user_id": user["user_id"]}, {"$set": update})
-    return {"ok": True, "name": name or user.get("name"), "email": user.get("email"), "picture": picture or user.get("picture")}
+    result = _col("users").update_one({"user_id": user["user_id"]}, {"$set": update})
+    return {
+        "ok": True,
+        "name": update.get("name") or user.get("name"),
+        "picture": update.get("picture") or user.get("picture"),
+        "email": user.get("email"),
+        "matched": result.matched_count,
+    }
 
 
 @app.api_route("/api/auth/logout", methods=["GET", "POST"])
