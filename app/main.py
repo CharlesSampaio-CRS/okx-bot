@@ -293,7 +293,7 @@ async def update_profile(request: Request, body: dict[str, Any] = {}) -> dict[st
     from .mongo import col as _col
     _col("users").update_one(
         {"user_id": user["user_id"]},
-        {"$set": {"name": name}},
+        {"$set": {"name": name, "name_edited": True}},
     )
     return {"ok": True, "name": name, "email": user.get("email"), "picture": user.get("picture")}
 

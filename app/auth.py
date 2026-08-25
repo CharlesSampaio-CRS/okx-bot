@@ -119,10 +119,16 @@ def upsert_user(userinfo: dict[str, Any]) -> dict[str, Any]:
     now = _now().isoformat(timespec="seconds")
     existing = col("users").find_one({"$or": [{"user_id": google_id}, {"email": email}]})
     user_id = str((existing or {}).get("user_id") or google_id)
+    google_name = str(userinfo.get("name") or userinfo.get("given_name") or email.split("@")[0])
+    # Preservar nome customizado se o usuário já editou
+    name = google_name
+    if existing and existing.get("name") and existing.get("name_edited"):
+        name = existing["name"]
     doc = {
         "user_id": user_id,
         "email": email,
-        "name": str(userinfo.get("name") or userinfo.get("given_name") or email.split("@")[0]),
+        "name": name,
+        "google_name": google_name,
         "picture": str(userinfo.get("picture") or ""),
         "google_id": google_id,
         "provider": "google",
@@ -130,6 +136,7 @@ def upsert_user(userinfo: dict[str, Any]) -> dict[str, Any]:
     }
     if not existing:
         doc["created_at"] = now
+        doc["name_edited"] = False
         col("users").insert_one(doc)
         _claim_legacy(user_id)
     else:
