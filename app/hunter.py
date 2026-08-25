@@ -529,6 +529,80 @@ def _std(xs: list[float]) -> float:
     return (sum((x - mean) ** 2 for x in xs) / (n - 1)) ** 0.5
 
 
+def _sma(values: list[float], period: int) -> float | None:
+    """Simple Moving Average dos últimos N valores."""
+    if len(values) < period:
+        return None
+    return sum(values[-period:]) / period
+
+
+def _calc_rsi(closes: list[float], period: int = 14) -> float | None:
+    """RSI (Relative Strength Index) clássico."""
+    if len(closes) < period + 1:
+        return None
+    gains = []
+    losses = []
+    for i in range(1, len(closes)):
+        diff = closes[i] - closes[i - 1]
+        gains.append(max(0, diff))
+        losses.append(max(0, -diff))
+    if len(gains) < period:
+        return None
+    # Média exponencial (Wilder's smoothing)
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def _find_support(lows: list[float], current_price: float) -> float | None:
+    """Encontra nível de suporte: cluster de mínimas próximas abaixo do preço."""
+    if len(lows) < 5:
+        return None
+    # Buscar mínimas abaixo do preço atual
+    below = sorted([l for l in lows if l < current_price * 0.995])
+    if not below:
+        return min(lows) if lows else None
+    # Cluster: agrupar mínimas dentro de 1% umas das outras
+    clusters: list[list[float]] = []
+    for val in below:
+        placed = False
+        for cluster in clusters:
+            if abs(val - cluster[0]) / cluster[0] < 0.01:
+                cluster.append(val)
+                placed = True
+                break
+        if not placed:
+            clusters.append([val])
+    # Suporte mais forte = cluster com mais toques, mais próximo do preço
+    if not clusters:
+        return below[-1]
+    clusters.sort(key=lambda c: (-len(c), -max(c)))
+    return sum(clusters[0]) / len(clusters[0])
+
+
+def _detect_higher_lows(lows: list[float]) -> bool:
+    """Detecta se os últimos fundos locais são ascendentes (tendência de alta)."""
+    if len(lows) < 20:
+        return False
+    # Encontrar fundos locais (mínimo de janela de 5)
+    local_mins: list[float] = []
+    for i in range(2, len(lows) - 2):
+        if lows[i] <= lows[i-1] and lows[i] <= lows[i-2] and lows[i] <= lows[i+1] and lows[i] <= lows[i+2]:
+            local_mins.append(lows[i])
+    if len(local_mins) < 3:
+        return False
+    # Verificar se os últimos 3+ fundos são crescentes
+    recent = local_mins[-4:]
+    ascending = sum(1 for i in range(1, len(recent)) if recent[i] > recent[i-1])
+    return ascending >= len(recent) - 1
+
+
 def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -> dict[str, Any]:
     """
     Features leves (sem ML): tendência, vol realizada, proximidade da mínima,
@@ -536,15 +610,15 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
     """
     preset = horizon_preset(horizon)
     rows = sorted(
-        [c for c in (candles or []) if c.get("c") is not None],
+        [c for c in (candles or []) if (c.get("c") or c.get("close")) is not None],
         key=lambda c: int(c.get("ts") or 0),
     )
     if len(rows) < 12:
         return {"ok": False, "bars": len(rows)}
 
-    closes = [float(c["c"]) for c in rows]
-    highs = [float(c.get("h") or c["c"]) for c in rows]
-    lows = [float(c.get("l") or c["c"]) for c in rows]
+    closes = [float(c.get("c") or c.get("close")) for c in rows]
+    highs = [float(c.get("h") or c.get("high") or c.get("c") or c.get("close")) for c in rows]
+    lows = [float(c.get("l") or c.get("low") or c.get("c") or c.get("close")) for c in rows]
     last = closes[-1]
     first = closes[0]
     chg_period_pct = ((last / first) - 1.0) * 100.0 if first > 0 else 0.0
@@ -584,6 +658,76 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
 
     range_pct = ((period_high - period_low) / period_low * 100.0) if period_low > 0 else 0.0
 
+    # ── Indicadores técnicos avançados ──
+
+    # RSI(14)
+    rsi_14 = _calc_rsi(closes, 14)
+
+    # Médias móveis (SMA)
+    sma_20 = _sma(closes, 20)
+    sma_50 = _sma(closes, 50)
+
+    # Posição relativa às médias
+    above_sma20 = (last > sma_20) if sma_20 else None
+    above_sma50 = (last > sma_50) if sma_50 else None
+
+    # Tendência: preço acima das médias = uptrend, dip é pullback (bom)
+    trend_score = 0.0
+    if above_sma20:
+        trend_score += 0.4
+    if above_sma50:
+        trend_score += 0.6
+    # Se SMA20 > SMA50 = golden cross zone
+    if sma_20 and sma_50 and sma_20 > sma_50:
+        trend_score += 0.2
+    trend_score = min(1.0, trend_score)
+
+    # ATH distance — usando todos os highs disponíveis
+    ath = max(highs) if highs else last
+    ath_distance_pct = ((ath - last) / ath * 100.0) if ath > 0 else 0.0
+    # Score: mais perto do ATH = token forte; muito longe = pode ser morto
+    # <20% do ATH = ótimo (0.9-1.0), 20-50% = ok, >80% = ruim
+    if ath_distance_pct <= 10:
+        ath_score = 1.0
+    elif ath_distance_pct <= 30:
+        ath_score = 0.7
+    elif ath_distance_pct <= 50:
+        ath_score = 0.5
+    elif ath_distance_pct <= 70:
+        ath_score = 0.3
+    else:
+        ath_score = 0.1
+
+    # Volume trend: média volume últimas 5 barras vs média 20 barras
+    vols = [float(c.get("vol") or 0) for c in rows if c.get("vol")]
+    vol_trend = 1.0
+    if len(vols) >= 20:
+        vol_recent = sum(vols[-5:]) / 5.0
+        vol_avg = sum(vols[-20:]) / 20.0
+        vol_trend = (vol_recent / vol_avg) if vol_avg > 0 else 1.0
+    # Volume crescendo no dip = capitulação (bom sinal de fundo)
+    vol_trend_score = min(1.0, max(0.0, (vol_trend - 0.5) / 1.5))
+
+    # Suporte: detectar cluster de lows (preços mínimos próximos)
+    support_level = _find_support(lows[-look:], last)
+
+    # Higher lows (fundos ascendentes) — últimos 4 fundos locais
+    higher_lows = _detect_higher_lows(lows)
+
+    # RSI score: <30 = sobrevendido (ótimo para compra), 30-50 = bom, >70 = sobrecomprado
+    rsi_score = 0.5
+    if rsi_14 is not None:
+        if rsi_14 <= 25:
+            rsi_score = 1.0
+        elif rsi_14 <= 35:
+            rsi_score = 0.85
+        elif rsi_14 <= 50:
+            rsi_score = 0.6
+        elif rsi_14 <= 70:
+            rsi_score = 0.35
+        else:
+            rsi_score = 0.1
+
     return {
         "ok": True,
         "bars": len(rows),
@@ -597,6 +741,21 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
         "range_pct": round(range_pct, 2),
         "period_low": period_low,
         "period_high": period_high,
+        # Novos indicadores
+        "rsi_14": round(rsi_14, 1) if rsi_14 is not None else None,
+        "rsi_score": round(rsi_score, 3),
+        "sma_20": round(sma_20, 6) if sma_20 else None,
+        "sma_50": round(sma_50, 6) if sma_50 else None,
+        "above_sma20": above_sma20,
+        "above_sma50": above_sma50,
+        "trend_score": round(trend_score, 3),
+        "ath": ath,
+        "ath_distance_pct": round(ath_distance_pct, 2),
+        "ath_score": round(ath_score, 3),
+        "vol_trend": round(vol_trend, 3),
+        "vol_trend_score": round(vol_trend_score, 3),
+        "support_level": round(support_level, 6) if support_level else None,
+        "higher_lows": higher_lows,
     }
 
 
@@ -647,15 +806,26 @@ def predict_sell_fitness(
 
     cw = float(preset["cycles_weight"])
     rw = float(preset["return_weight"])
-    w_sum = 0.22 + 0.18 + 0.16 * cw + 0.16 * rw + 0.12 + 0.10 + 0.06
+    # Novos indicadores do analyze_candles
+    trend_n = float(feat.get("trend_score") or 0.3)
+    rsi_n = float(feat.get("rsi_score") or 0.5)
+    ath_n = float(feat.get("ath_score") or 0.3)
+    vol_trend_n = float(feat.get("vol_trend_score") or 0.5)
+    higher_lows_n = 1.0 if feat.get("higher_lows") else 0.3
+
+    w_sum = 0.16 + 0.12 + 0.12 * cw + 0.12 * rw + 0.10 + 0.08 + 0.06 + 0.08 + 0.06 + 0.05 + 0.05
     z = (
-        0.22 * spot_n
-        + 0.18 * assertiveness
-        + 0.16 * cw * cyc_n
-        + 0.16 * rw * ret_n
-        + 0.12 * near
-        + 0.10 * bounce_n
-        + 0.06 * vol_fit
+        0.16 * spot_n          # Score base do spot (liquidez/spread/vol)
+        + 0.12 * assertiveness  # Assertividade do backtest
+        + 0.12 * cw * cyc_n    # Ciclos por dia
+        + 0.12 * rw * ret_n    # Retorno de capital
+        + 0.10 * near           # Proximidade da mínima
+        + 0.08 * bounce_n       # Taxa de bounce
+        + 0.06 * vol_fit        # Fitness de volatilidade
+        + 0.08 * trend_n        # Tendência (MAs, higher lows)
+        + 0.06 * rsi_n          # RSI (sobrevendido = bom)
+        + 0.05 * ath_n          # Distância do ATH
+        + 0.05 * vol_trend_n    # Volume crescendo
     ) / w_sum
     z *= 0.55 + 0.45 * recommend
     if not tradeable:
@@ -680,6 +850,25 @@ def predict_sell_fitness(
         reasons.append(f"bounce hist. {bounce * 100:.0f}%")
     if ret:
         reasons.append(f"retorno sim. {ret:.1f}%")
+    # Novos indicadores
+    if feat.get("rsi_14") is not None:
+        rsi_v = feat["rsi_14"]
+        if rsi_v <= 30:
+            reasons.append(f"RSI {rsi_v:.0f} (sobrevendido)")
+        elif rsi_v >= 70:
+            reasons.append(f"RSI {rsi_v:.0f} (sobrecomprado)")
+        else:
+            reasons.append(f"RSI {rsi_v:.0f}")
+    if feat.get("trend_score") is not None and feat["trend_score"] >= 0.6:
+        reasons.append("tendência de alta (acima das MAs)")
+    elif feat.get("trend_score") is not None and feat["trend_score"] < 0.3:
+        reasons.append("tendência de baixa")
+    if feat.get("ath_distance_pct") is not None:
+        reasons.append(f"ATH -{feat['ath_distance_pct']:.0f}%")
+    if feat.get("higher_lows"):
+        reasons.append("fundos ascendentes")
+    if feat.get("vol_trend") is not None and feat["vol_trend"] > 1.5:
+        reasons.append(f"volume crescendo {feat['vol_trend']:.1f}x")
 
     return {
         "sell_fitness": round(sell_fitness, 1),
