@@ -124,12 +124,16 @@ def upsert_user(userinfo: dict[str, Any]) -> dict[str, Any]:
     name = google_name
     if existing and existing.get("name") and existing.get("name_edited"):
         name = existing["name"]
+    # Preservar foto customizada
+    picture = str(userinfo.get("picture") or "")
+    if existing and existing.get("picture_edited") and existing.get("picture"):
+        picture = existing["picture"]
     doc = {
         "user_id": user_id,
         "email": email,
         "name": name,
         "google_name": google_name,
-        "picture": str(userinfo.get("picture") or ""),
+        "picture": picture,
         "google_id": google_id,
         "provider": "google",
         "updated_at": now,

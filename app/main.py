@@ -283,19 +283,27 @@ async def auth_known_users() -> dict[str, Any]:
 
 @app.put("/api/auth/profile")
 async def update_profile(request: Request, body: dict[str, Any] = {}) -> dict[str, Any]:
-    """Atualizar nome do perfil do usuário."""
+    """Atualizar nome e/ou foto do perfil do usuário."""
     user = auth.user_from_request(request)
     if not user:
         raise HTTPException(401, "não autenticado")
+    update: dict[str, Any] = {}
     name = str(body.get("name") or "").strip()
-    if not name:
-        raise HTTPException(400, "nome obrigatório")
+    picture = str(body.get("picture") or "").strip()
+    if name:
+        update["name"] = name
+        update["name_edited"] = True
+    if picture:
+        # Aceita data:image/* (base64) ou URL
+        if len(picture) > 600_000:
+            raise HTTPException(400, "imagem muito grande (máx ~500KB)")
+        update["picture"] = picture
+        update["picture_edited"] = True
+    if not update:
+        raise HTTPException(400, "nada para atualizar")
     from .mongo import col as _col
-    _col("users").update_one(
-        {"user_id": user["user_id"]},
-        {"$set": {"name": name, "name_edited": True}},
-    )
-    return {"ok": True, "name": name, "email": user.get("email"), "picture": user.get("picture")}
+    _col("users").update_one({"user_id": user["user_id"]}, {"$set": update})
+    return {"ok": True, "name": name or user.get("name"), "email": user.get("email"), "picture": picture or user.get("picture")}
 
 
 @app.api_route("/api/auth/logout", methods=["GET", "POST"])
