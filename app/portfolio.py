@@ -104,8 +104,18 @@ class PortfolioWatcher:
         assets: list[dict[str, Any]],
         when: datetime,
         usdt_brl: float | None,
+        total_eq_now: float = 0.0,
     ) -> Optional[float]:
-        """PnL do patrimônio vs preço OKX no início do período (candles), não snapshot local."""
+        """PnL = patrimônio agora - patrimônio na abertura do período (via snapshots).
+
+        Fallback: se não há snapshot, usa preço dos candles × qty atual (menos preciso).
+        """
+        # Método 1: snapshot (correto — lida com compras/vendas/depósitos)
+        eq_open = db.portfolio_eq_open(when)
+        if eq_open is not None and eq_open > 0 and total_eq_now > 0:
+            return total_eq_now - eq_open
+
+        # Fallback: candles × qty atual (impreciso se houve trades no período)
         age_h = (datetime.now(timezone.utc) - when.astimezone(timezone.utc)).total_seconds() / 3600.0
         bar = "1H" if age_h <= 48 else "1D"
 
@@ -285,9 +295,9 @@ class PortfolioWatcher:
         db.save_portfolio_snapshot(total_eq, assets, usdt_brl=usdt_brl)
         starts = db.period_starts()
         pnl_today, pnl_week, pnl_month = await asyncio.gather(
-            self._okx_period_pnl(assets, starts["today"], usdt_brl),
-            self._okx_period_pnl(assets, starts["week"], usdt_brl),
-            self._okx_period_pnl(assets, starts["month"], usdt_brl),
+            self._okx_period_pnl(assets, starts["today"], usdt_brl, total_eq_now=total_eq),
+            self._okx_period_pnl(assets, starts["week"], usdt_brl, total_eq_now=total_eq),
+            self._okx_period_pnl(assets, starts["month"], usdt_brl, total_eq_now=total_eq),
         )
         # 24h: open24h dos tickers OKX (já é histórico da exchange)
         pnl_24h = est_24h
