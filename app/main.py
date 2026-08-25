@@ -239,10 +239,17 @@ async def auth_login(request: Request):
 @app.get("/api/auth/callback")
 async def auth_callback(request: Request, code: str = "", state: str = ""):
     saved = request.cookies.get(auth.STATE_COOKIE) or ""
-    if not code or not state or state != saved:
-        raise HTTPException(400, "login inválido ou expirado — tente de novo")
-    claims = await auth.exchange_code(request, code)
-    user = auth.upsert_user(claims)
+    if not code:
+        raise HTTPException(400, "login inválido — código ausente")
+    if state and saved and state != saved:
+        raise HTTPException(400, "login expirado — tente de novo")
+    try:
+        userinfo = await auth.exchange_code(request, code)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(400, f"Falha no login: {exc}") from exc
+    user = auth.upsert_user(userinfo)
     sid = auth.create_session(str(user["user_id"]))
     resp = RedirectResponse("/", status_code=302)
     auth.set_session_cookie(resp, sid)
