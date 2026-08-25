@@ -124,13 +124,9 @@ async def _google_url_with_account_picker(cognito_authorize: str) -> str | None:
 async def login_url(request: Request) -> str:
     state = secrets.token_urlsafe(24)
     request.state.oauth_state = state
-    cognito = _cognito_authorize_url(request, state)
-    # Tenta pegar URL direta do Google com account picker
-    google_url = await _google_url_with_account_picker(cognito)
-    if google_url:
-        return google_url
-    # Fallback: URL do Cognito com identity_provider=Google (vai direto sem hosted UI)
-    return cognito
+    # Usar URL do Cognito /oauth2/authorize direto com identity_provider=Google
+    # O Cognito redireciona automaticamente para o Google se o IdP estiver configurado
+    return _cognito_authorize_url(request, state)
 
 
 def logout_url(request: Request) -> str:
