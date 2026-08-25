@@ -4236,3 +4236,24 @@ html.theme-dark .profile-photo-edit { background: var(--up); }
   font-size: 12px;
   cursor: pointer;
 }
+
+
+/* ===== Mobile responsive fixes ===== */
+@media (max-width: 560px) {
+  .toast-container { right: 8px; left: 8px; max-width: none; }
+  .toast { font-size: 12px; padding: 10px; }
+  .notif-panel { width: calc(100vw - 16px); right: 8px; }
+  .copilot-panel { right: 8px; left: 8px; width: auto; bottom: 8px; }
+  .order-tables { overflow-x: auto; }
+  .wallet-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .profile-header { flex-direction: column; align-items: center; text-align: center; }
+  .profile-avatars { justify-content: center; }
+  .config-grid { max-width: 100%; }
+  .hunter-layout { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 400px) {
+  .topbar { gap: 4px; }
+  .topbar h1 { font-size: 16px; }
+  .content { padding-left: 10px; padding-right: 10px; }
+  .card { padding: 12px; }
+}
