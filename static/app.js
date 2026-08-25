@@ -4211,7 +4211,7 @@ function renderWallet(data) {
       <td class="num">${fmt(a.avail, 8)}</td>
       <td class="num">${fmt(a.eq_usd, 2)}${brl != null ? `<small class="wallet-brl">R$ ${fmt(brl, 2)}</small>` : ""}</td>
       <td class="num">${fmt(a.last, 6)}${lastBrl != null ? `<small class="wallet-brl">R$ ${fmt(lastBrl, lastBrl >= 1 ? 4 : 6)}</small>` : ""}</td>
-      <td class="num ${chgCls}">${chg}${chgBrl != null ? `<small class="wallet-brl">R$ ${fmt(chgBrl, 2)}</small>` : ""}</td>
+      <td class="num ${chgCls}">${chg}</td>
       <td class="num ${uplCls}">${upl}${uplBrl != null ? `<small class="wallet-brl">R$ ${fmt(uplBrl, 2)}</small>` : ""}</td>
       <td><div class="wallet-actions">${actions}</div></td>
     </tr>`;
