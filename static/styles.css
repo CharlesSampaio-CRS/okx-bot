@@ -3287,9 +3287,12 @@ html.theme-dark .nav a:hover {
   color: var(--text);
 }
 html.theme-dark .nav a.active {
-  background: var(--nav-active-bg);
-  color: var(--nav-active-fg);
-  box-shadow: inset 2px 0 0 #888;
+  background: rgba(61, 186, 126, 0.08);
+  color: var(--up);
+  box-shadow: inset 3px 0 0 var(--up);
+}
+html.theme-dark .nav a.active svg {
+  stroke: var(--up);
 }
 html.theme-dark .skeleton {
   background: linear-gradient(90deg, var(--hover) 25%, var(--surface-2) 50%, var(--hover) 75%);
@@ -3829,13 +3832,18 @@ body.login-locked .main { visibility: hidden; }
   padding: 8px;
   border-radius: 10px;
   background: var(--surface-2);
+  text-decoration: none;
+  color: var(--text);
+  transition: background 0.15s;
 }
+.user-chip:hover { background: var(--hover); }
 .user-chip img {
   width: 28px;
   height: 28px;
   border-radius: 50%;
   object-fit: cover;
   background: var(--line);
+  flex-shrink: 0;
 }
 .user-chip-text { min-width: 0; flex: 1; text-align: left; }
 .user-chip-text strong,
@@ -3846,8 +3854,13 @@ body.login-locked .main { visibility: hidden; }
   white-space: nowrap;
 }
 .user-chip-text small { color: var(--muted); font-size: 11px; }
+.btn-logout-side { width: 100%; margin-bottom: 4px; font-size: 12px; }
+body.nav-collapsed .user-chip {
+  justify-content: center;
+  padding: 6px;
+}
 body.nav-collapsed .user-chip-text,
-body.nav-collapsed .user-chip .btn { display: none; }
+body.nav-collapsed .btn-logout-side { display: none; }
 
 .copilot-panel {
   position: fixed;
@@ -4143,3 +4156,27 @@ body.login-locked #btn-copilot { display: none !important; }
   color: #f59e0b;
   font-weight: 600;
 }
+
+
+/* ===== Profile page ===== */
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 0;
+}
+.profile-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--line);
+  border: 2px solid var(--line);
+}
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.profile-info strong { font-size: 16px; }
+.profile-info small { font-size: 12px; color: var(--muted); }

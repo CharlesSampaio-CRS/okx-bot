@@ -85,14 +85,14 @@
       </a>
     </nav>
     <div class="sidebar-foot">
-      <div id="user-chip" class="user-chip" hidden>
+      <a id="user-chip" class="user-chip" href="#/profile" hidden title="Meu perfil">
         <img id="user-chip-photo" alt="" />
         <div class="user-chip-text">
           <strong id="user-chip-name">—</strong>
           <small id="user-chip-email">—</small>
         </div>
-        <button id="btn-logout" class="btn btn-ghost" type="button">Sair</button>
-      </div>
+      </a>
+      <button id="btn-logout" class="btn btn-ghost btn-logout-side" type="button" title="Sair">Sair</button>
       <button id="btn-nav-toggle" class="btn btn-ico btn-ghost nav-toggle" type="button" title="Recolher menu" aria-label="Recolher menu" aria-expanded="true" aria-controls="app-nav">
         <svg class="nav-toggle-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M15 18l-6-6 6-6"/>
@@ -959,6 +959,34 @@
         </article>
 
         </div>
+      </section>
+
+      <section id="page-profile" class="page">
+        <article class="card form-card" style="max-width:480px">
+          <div class="card-h"><h2>Meu Perfil</h2></div>
+          <div class="profile-header">
+            <img id="profile-photo" class="profile-photo" src="/static/img/logo-192.png" alt="" />
+            <div class="profile-info">
+              <strong id="profile-name-display">—</strong>
+              <small id="profile-email-display">—</small>
+              <small id="profile-provider" class="hint">Google</small>
+            </div>
+          </div>
+          <form id="profile-form" class="form" style="margin-top:16px">
+            <label class="full">Nome de exibição
+              <input name="name" id="profile-name-input" type="text" maxlength="60" placeholder="Seu nome" />
+            </label>
+            <label class="full">E-mail (login Google)
+              <input name="email" id="profile-email-input" type="email" disabled />
+            </label>
+            <div class="form-actions full">
+              <button id="btn-profile-save" class="btn btn-primary" type="submit">Salvar</button>
+              <span id="profile-msg" class="flash"></span>
+            </div>
+          </form>
+          <hr style="border:none;border-top:1px solid var(--line);margin:20px 0" />
+          <button id="btn-profile-logout" class="btn btn-sell" type="button" style="width:100%">Sair da conta</button>
+        </article>
       </section>
 
       <section id="page-docs" class="page">

@@ -9,6 +9,7 @@ const TITLES = {
   lab: ["Lab", "Simule queda e alvo no histórico Spot — sem ordem real"],
   hunter: ["Caçador", "Radar Spot · top 10 · melhor estratégia por token"],
   strategies: ["Estratégias", "Catálogo de presets · valide no token · crie o bot"],
+  profile: ["Perfil", "Dados da conta · nome · login"],
   docs: ["Como funciona", "Manual pesquisável · dicionário · FAQ"],
 };
 
@@ -701,6 +702,7 @@ function showPage(id) {
     ensureStratReady();
   }
   if (id === "hunter") loadHunter();
+  if (id === "profile") loadProfile();
   if (id === "docs") {
     initDocsPage();
     const jump = sessionStorage.getItem("okx_docs_jump");
@@ -7950,6 +7952,45 @@ async function initCopilot() {
     sendCopilot($("copilot-input")?.value);
   });
 }
+
+// ===== Perfil =====
+
+async function loadProfile() {
+  try {
+    const me = await api("/api/auth/me");
+    if (!me.authenticated) return;
+    $("profile-photo").src = me.picture || "/static/img/logo-192.png";
+    $("profile-name-display").textContent = me.name || "—";
+    $("profile-email-display").textContent = me.email || "—";
+    $("profile-name-input").value = me.name || "";
+    $("profile-email-input").value = me.email || "";
+  } catch (_) {}
+}
+
+$("profile-form")?.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const name = $("profile-name-input").value.trim();
+  if (!name) {
+    flash("profile-msg", "Nome não pode ser vazio", false);
+    return;
+  }
+  try {
+    const res = await api("/api/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify({ name }),
+    });
+    flash("profile-msg", "Perfil atualizado", true);
+    $("profile-name-display").textContent = res.name || name;
+    // Atualizar chip do menu
+    if ($("user-chip-name")) $("user-chip-name").textContent = res.name || name;
+  } catch (err) {
+    flash("profile-msg", err.message || "Erro ao salvar", false);
+  }
+});
+
+$("btn-profile-logout")?.addEventListener("click", () => {
+  location.href = "/api/auth/logout";
+});
 
 // ===== Sistema de Notificações =====
 
