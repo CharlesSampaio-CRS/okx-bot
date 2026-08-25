@@ -7612,18 +7612,20 @@ function renderHunterCandidates(scan) {
   }).join("");
 }
 
-async function loadHunter({ forceScan = false } = {}) {
+async function loadHunter({ forceScan = false, preserveToggle = false } = {}) {
   flash("hunter-msg", "", true);
   try {
     const data = await api("/api/hunter");
     lastHunter = data;
     applyHunterSettingsToForm(data.settings);
-    // Sincronizar toggle auto-scan
-    const toggle = $("hunter-auto-toggle");
-    const label = $("hunter-auto-label");
-    if (toggle) {
-      toggle.checked = !!data.settings?.enabled;
-      if (label) label.textContent = data.settings?.enabled ? "Auto-scan ligado" : "Auto-scan desligado";
+    // Sincronizar toggle auto-scan (só se não é scan manual)
+    if (!preserveToggle) {
+      const toggle = $("hunter-auto-toggle");
+      const label = $("hunter-auto-label");
+      if (toggle) {
+        toggle.checked = !!data.settings?.enabled;
+        if (label) label.textContent = data.settings?.enabled ? "Auto-scan ligado" : "Auto-scan desligado";
+      }
     }
     if (forceScan || !data.last_scan?.candidates?.length) {
       const scan = await api(`/api/hunter/scan${forceScan ? "?refresh=1" : ""}`);
@@ -7640,7 +7642,12 @@ async function loadHunter({ forceScan = false } = {}) {
 
 $("btn-hunter-scan")?.addEventListener("click", () => {
   withRefresh("btn-hunter-scan", async () => {
-    await loadHunter({ forceScan: true });
+    // Salvar filtros antes de escanear
+    await api("/api/hunter/settings", {
+      method: "PUT",
+      body: JSON.stringify(hunterSettingsFromForm()),
+    });
+    await loadHunter({ forceScan: true, preserveToggle: true });
   }, {
     statusId: "hunter-msg",
     statusText: "Analisando dia, semana e mês…",
@@ -7668,18 +7675,6 @@ $("hunter-auto-toggle")?.addEventListener("change", async (ev) => {
   } catch (err) {
     ev.target.checked = !enabled;
     flash("hunter-msg", err?.message || "Erro ao alterar auto-scan", false);
-  }
-});
-
-$("btn-hunter-save")?.addEventListener("click", async () => {
-  try {
-    await api("/api/hunter/settings", {
-      method: "PUT",
-      body: JSON.stringify(hunterSettingsFromForm()),
-    });
-    flash("hunter-msg", "Filtros salvos", true);
-  } catch (err) {
-    flash("hunter-msg", err.message, false);
   }
 });
 
