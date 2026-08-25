@@ -1,15 +1,15 @@
+"""Autenticação direta com Google OAuth 2.0 (sem Cognito)."""
+
 from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+from urllib.parse import urlencode
 
 import httpx
-import jwt
 from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
-from jwt import PyJWKClient
+from fastapi.responses import JSONResponse
 
 from .config import settings
 from .context import current_user_id
@@ -19,31 +19,17 @@ COOKIE = "okbot_session"
 STATE_COOKIE = "okbot_oauth_state"
 SESSION_DAYS = 14
 
-_jwks: PyJWKClient | None = None
+GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 
 def enabled() -> bool:
-    return bool(
-        settings.cognito_user_pool_id
-        and settings.cognito_client_id
-        and settings.cognito_domain
-    )
+    return bool(settings.google_client_id and settings.google_client_secret)
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _issuer() -> str:
-    return f"https://cognito-idp.{settings.cognito_region}.amazonaws.com/{settings.cognito_user_pool_id}"
-
-
-def _jwks_client() -> PyJWKClient:
-    global _jwks
-    if _jwks is None:
-        url = f"{_issuer()}/.well-known/jwks.json"
-        _jwks = PyJWKClient(url, cache_jwk_set=True)
-    return _jwks
 
 
 def init_auth_indexes() -> None:
@@ -63,14 +49,14 @@ def init_auth_indexes() -> None:
 
 
 def redirect_uri(request: Request) -> str:
-    configured = (settings.cognito_redirect_uri or "").strip()
+    configured = (settings.google_redirect_uri or "").strip()
     if configured:
         return configured
     return str(request.base_url).rstrip("/") + "/api/auth/callback"
 
 
 def _app_origin(request: Request) -> str:
-    configured = (settings.cognito_redirect_uri or "").strip()
+    configured = (settings.google_redirect_uri or "").strip()
     if configured:
         from urllib.parse import urlsplit
         parsed = urlsplit(configured)
@@ -79,112 +65,66 @@ def _app_origin(request: Request) -> str:
     return str(request.base_url).rstrip("/")
 
 
-def _cognito_authorize_url(request: Request, state: str) -> str:
-    params = {
-        "client_id": settings.cognito_client_id,
-        "response_type": "code",
-        "scope": "openid email profile",
-        "redirect_uri": redirect_uri(request),
-        "identity_provider": "Google",
-        "state": state,
-        "prompt": "select_account",
-    }
-    domain = settings.cognito_domain.replace("https://", "").rstrip("/")
-    return f"https://{domain}/oauth2/authorize?{urlencode(params)}"
-
-
-async def _google_url_with_account_picker(cognito_authorize: str) -> str | None:
-    """Cognito nem sempre repassa prompt=select_account ao Google. Tenta injetar direto."""
-    import logging
-    _log = logging.getLogger("okbot.auth")
-    try:
-        async with httpx.AsyncClient(follow_redirects=False, timeout=5.0) as client:
-            res = await client.get(
-                cognito_authorize,
-                headers={"User-Agent": "Mozilla/5.0"},
-            )
-        loc = res.headers.get("location") or ""
-        _log.info(f"[AUTH] Cognito redirect → {loc[:150]}")
-        if "accounts.google.com" not in loc:
-            return None
-        parsed = urlparse(loc)
-        query = parse_qs(parsed.query, keep_blank_values=True)
-        query["prompt"] = ["select_account"]
-        flat = {key: values[-1] for key, values in query.items()}
-        return urlunparse(
-            (parsed.scheme, parsed.netloc, parsed.path, parsed.params, urlencode(flat), "")
-        )
-    except Exception as exc:
-        _log.warning(f"[AUTH] Falha ao interceptar Cognito: {exc}")
-        return None
-
-
-async def login_url(request: Request) -> str:
+def login_url(request: Request) -> str:
+    """Gera URL do Google OAuth com account picker."""
     state = secrets.token_urlsafe(24)
     request.state.oauth_state = state
-    cognito = _cognito_authorize_url(request, state)
-    # Tentar interceptar o redirect do Cognito e injetar prompt=select_account no Google
-    google_url = await _google_url_with_account_picker(cognito)
-    if google_url:
-        return google_url
-    # Fallback: URL do Cognito direto (pode não mostrar picker se há sessão cacheada)
-    return cognito
-
-
-def logout_url(request: Request) -> str:
-    domain = settings.cognito_domain.replace("https://", "").rstrip("/")
     params = {
-        "client_id": settings.cognito_client_id,
-        "logout_uri": _app_origin(request) + "/",
+        "client_id": settings.google_client_id,
+        "redirect_uri": redirect_uri(request),
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account",
+        "state": state,
     }
-    return f"https://{domain}/logout?{urlencode(params)}"
-
-
-def _decode_id_token(id_token: str) -> dict[str, Any]:
-    key = _jwks_client().get_signing_key_from_jwt(id_token)
-    return jwt.decode(
-        id_token,
-        key.key,
-        algorithms=["RS256"],
-        audience=settings.cognito_client_id,
-        issuer=_issuer(),
-    )
+    return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
 
 
 async def exchange_code(request: Request, code: str) -> dict[str, Any]:
-    domain = settings.cognito_domain.replace("https://", "").rstrip("/")
-    url = f"https://{domain}/oauth2/token"
+    """Troca code por access_token e busca dados do usuário no Google."""
     data = {
-        "grant_type": "authorization_code",
-        "client_id": settings.cognito_client_id,
+        "client_id": settings.google_client_id,
+        "client_secret": settings.google_client_secret,
         "code": code,
         "redirect_uri": redirect_uri(request),
+        "grant_type": "authorization_code",
     }
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        res = await client.post(url, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        res = await client.post(GOOGLE_TOKEN_URL, data=data)
     if res.status_code >= 400:
-        raise HTTPException(400, "não foi possível concluir o login Google")
-    body = res.json()
-    id_token = str(body.get("id_token") or "")
-    if not id_token:
-        raise HTTPException(400, "Cognito não devolveu id_token")
-    return _decode_id_token(id_token)
+        raise HTTPException(400, "Falha ao trocar código com Google")
+    tokens = res.json()
+    access_token = tokens.get("access_token")
+    if not access_token:
+        raise HTTPException(400, "Google não retornou access_token")
+
+    # Buscar perfil do usuário
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        user_res = await client.get(
+            GOOGLE_USERINFO_URL,
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+    if user_res.status_code >= 400:
+        raise HTTPException(400, "Falha ao buscar perfil Google")
+    return user_res.json()
 
 
-def upsert_user(claims: dict[str, Any]) -> dict[str, Any]:
-    sub = str(claims.get("sub") or "").strip()
-    email = str(claims.get("email") or "").strip().lower()
-    if not sub or not email:
-        raise HTTPException(400, "login Google sem e-mail — permita o e-mail na conta Google")
+def upsert_user(userinfo: dict[str, Any]) -> dict[str, Any]:
+    """Cria ou atualiza usuário a partir do Google userinfo."""
+    google_id = str(userinfo.get("id") or "").strip()
+    email = str(userinfo.get("email") or "").strip().lower()
+    if not google_id or not email:
+        raise HTTPException(400, "login Google sem e-mail")
     now = _now().isoformat(timespec="seconds")
-    existing = col("users").find_one({"$or": [{"user_id": sub}, {"email": email}]})
-    user_id = str((existing or {}).get("user_id") or sub)
+    existing = col("users").find_one({"$or": [{"user_id": google_id}, {"email": email}]})
+    user_id = str((existing or {}).get("user_id") or google_id)
     doc = {
         "user_id": user_id,
         "email": email,
-        "name": str(claims.get("name") or claims.get("given_name") or email.split("@")[0]),
-        "picture": str(claims.get("picture") or ""),
-        "cognito_sub": sub,
+        "name": str(userinfo.get("name") or userinfo.get("given_name") or email.split("@")[0]),
+        "picture": str(userinfo.get("picture") or ""),
+        "google_id": google_id,
         "provider": "google",
         "updated_at": now,
     }
@@ -321,19 +261,3 @@ def clear_session_cookie(response) -> None:
 
 def unauthorized() -> JSONResponse:
     return JSONResponse({"detail": "faça login com Google"}, status_code=401)
-
-
-enabled = enabled
-user_from_request = user_from_request
-unauthorized = unauthorized
-bind_user = bind_user
-login_url = login_url
-set_state_cookie = set_state_cookie
-exchange_code = exchange_code
-upsert_user = upsert_user
-create_session = create_session
-set_session_cookie = set_session_cookie
-public_user = public_user
-drop_session = drop_session
-logout_url = logout_url
-clear_session_cookie = clear_session_cookie

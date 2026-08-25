@@ -230,7 +230,7 @@ async def auth_config() -> dict[str, Any]:
 async def auth_login(request: Request):
     if not auth.enabled():
         raise HTTPException(400, "login Google não configurado")
-    url = await auth.login_url(request)
+    url = auth.login_url(request)
     resp = RedirectResponse(url, status_code=302)
     auth.set_state_cookie(resp, getattr(request.state, "oauth_state", ""))
     return resp
@@ -294,10 +294,7 @@ async def update_profile(request: Request, body: dict[str, Any] = {}) -> dict[st
 @app.api_route("/api/auth/logout", methods=["GET", "POST"])
 async def auth_logout(request: Request):
     auth.drop_session(request.cookies.get(auth.COOKIE))
-    if auth.enabled():
-        resp = RedirectResponse(auth.logout_url(request), status_code=302)
-    else:
-        resp = RedirectResponse("/", status_code=302)
+    resp = RedirectResponse("/", status_code=302)
     auth.clear_session_cookie(resp)
     return resp
 

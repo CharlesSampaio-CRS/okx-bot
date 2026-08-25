@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     cognito_redirect_uri: str = ""
     auth_cookie_secure: bool = False
 
+    # Google OAuth direto
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: str = ""
+
     # Copiloto. provider=cursor usa o CLI `cursor agent` (modo ask).
     # provider=openai usa qualquer API /chat/completions.
     llm_provider: str = "cursor"
