@@ -7955,18 +7955,17 @@ async function initCopilot() {
 
 // ===== Perfil =====
 
-const PROFILE_AVATARS = ["🤖","🚀","💎","🦊","🐺","🦁","🐻","🦅","🎯","🔥","⚡","🌙","☀️","🏆","👾","🎲"];
+const PROFILE_AVATARS = ["\u{1F916}","\u{1F680}","\u{1F48E}","\u{1F98A}","\u{1F43A}","\u{1F981}","\u{1F43B}","\u{1F985}","\u{1F3AF}","\u{1F525}","\u{26A1}","\u{1F319}","\u{2600}\u{FE0F}","\u{1F3C6}","\u{1F47E}","\u{1F3B2}"];
 
 async function loadProfile() {
   try {
     const me = await api("/api/auth/me");
     if (!me.authenticated) return;
     $("profile-photo").src = me.picture || "/static/img/logo-192.png";
-    $("profile-name-display").textContent = me.name || "—";
-    $("profile-email-display").textContent = me.email || "—";
+    $("profile-name-display").textContent = me.name || "\u2014";
+    $("profile-email-display").textContent = me.email || "\u2014";
     $("profile-name-input").value = me.name || "";
     $("profile-email-input").value = me.email || "";
-    // Renderizar avatares
     const grid = $("profile-avatars");
     if (grid) {
       grid.innerHTML = PROFILE_AVATARS.map(e =>
@@ -7976,84 +7975,66 @@ async function loadProfile() {
   } catch (_) {}
 }
 
-$("btn-change-photo")?.addEventListener("click", () => {
-  const picker = $("profile-avatar-picker");
-  if (picker) picker.hidden = !picker.hidden;
-});
-
-$("profile-avatars")?.addEventListener("click", async (ev) => {
-  const btn = ev.target.closest(".profile-avatar-opt");
-  if (!btn) return;
-  const emoji = btn.dataset.avatar;
-  // Converter emoji para imagem (SVG data URI)
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="80">${emoji}</text></svg>`;
-  const dataUri = `data:image/svg+xml;base64,${btoa(svg)}`;
-  try {
-    await api("/api/auth/profile", {
-      method: "PUT",
-      body: JSON.stringify({ picture: dataUri }),
-    });
-    $("profile-photo").src = dataUri;
-    if ($("user-chip-photo")) $("user-chip-photo").src = dataUri;
-    $("profile-avatar-picker").hidden = true;
-    // Marcar selecionado
-    $("profile-avatars").querySelectorAll(".profile-avatar-opt").forEach(b => b.classList.remove("selected"));
-    btn.classList.add("selected");
-    flash("profile-msg", "Avatar atualizado", true);
-  } catch (err) {
-    flash("profile-msg", err.message || "Erro", false);
-  }
-});
-
-$("profile-upload")?.addEventListener("change", async (ev) => {
-  const file = ev.target.files?.[0];
-  if (!file) return;
-  if (file.size > 500_000) {
-    flash("profile-msg", "Imagem muito grande (máx 500KB)", false);
+document.addEventListener("click", async (ev) => {
+  if (ev.target.closest("#btn-change-photo")) {
+    const picker = $("profile-avatar-picker");
+    if (picker) picker.hidden = !picker.hidden;
     return;
   }
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const dataUri = reader.result;
+  const avatarBtn = ev.target.closest(".profile-avatar-opt[data-avatar]");
+  if (avatarBtn) {
+    const emoji = avatarBtn.dataset.avatar;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="80">${emoji}</text></svg>`;
+    const dataUri = `data:image/svg+xml;base64,${btoa(svg)}`;
     try {
-      await api("/api/auth/profile", {
-        method: "PUT",
-        body: JSON.stringify({ picture: dataUri }),
-      });
+      await api("/api/auth/profile", { method: "PUT", body: JSON.stringify({ picture: dataUri }) });
       $("profile-photo").src = dataUri;
       if ($("user-chip-photo")) $("user-chip-photo").src = dataUri;
       $("profile-avatar-picker").hidden = true;
-      flash("profile-msg", "Foto atualizada", true);
+      $("profile-avatars").querySelectorAll(".profile-avatar-opt").forEach(b => b.classList.remove("selected"));
+      avatarBtn.classList.add("selected");
+      flash("profile-msg", "Avatar atualizado", true);
     } catch (err) {
-      flash("profile-msg", err.message || "Erro ao enviar", false);
+      flash("profile-msg", err?.message || "Erro", false);
     }
+    return;
+  }
+  if (ev.target.closest("#btn-profile-logout")) {
+    location.href = "/api/auth/logout";
+    return;
+  }
+});
+
+document.addEventListener("change", async (ev) => {
+  if (ev.target.id !== "profile-upload") return;
+  const file = ev.target.files?.[0];
+  if (!file) return;
+  if (file.size > 500000) { flash("profile-msg", "Imagem muito grande (max 500KB)", false); return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await api("/api/auth/profile", { method: "PUT", body: JSON.stringify({ picture: reader.result }) });
+      $("profile-photo").src = reader.result;
+      if ($("user-chip-photo")) $("user-chip-photo").src = reader.result;
+      $("profile-avatar-picker").hidden = true;
+      flash("profile-msg", "Foto atualizada", true);
+    } catch (err) { flash("profile-msg", err?.message || "Erro", false); }
   };
   reader.readAsDataURL(file);
   ev.target.value = "";
 });
 
-$("profile-form")?.addEventListener("submit", async (ev) => {
+document.addEventListener("submit", async (ev) => {
+  if (ev.target.id !== "profile-form") return;
   ev.preventDefault();
   const name = $("profile-name-input").value.trim();
-  if (!name) {
-    flash("profile-msg", "Nome não pode ser vazio", false);
-    return;
-  }
+  if (!name) { flash("profile-msg", "Nome vazio", false); return; }
   try {
-    const res = await api("/api/auth/profile", {
-      method: "PUT",
-      body: JSON.stringify({ name }),
-    });
+    const res = await api("/api/auth/profile", { method: "PUT", body: JSON.stringify({ name }) });
     flash("profile-msg", "Perfil atualizado", true);
     $("profile-name-display").textContent = res.name || name;
     if ($("user-chip-name")) $("user-chip-name").textContent = res.name || name;
-  } catch (err) {
-    flash("profile-msg", err.message || "Erro ao salvar", false);
-  }
-});
-
-$("btn-profile-logout")?.addEventListener("click", () => {
-  location.href = "/api/auth/logout";
+  } catch (err) { flash("profile-msg", err?.message || "Erro", false); }
 });
 
 // ===== Sistema de Notificações =====
