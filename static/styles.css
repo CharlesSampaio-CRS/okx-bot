@@ -141,13 +141,16 @@ body {
   margin-top: auto;
   padding-top: 14px;
   border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
 }
 .nav-toggle {
-  width: 40px;
+  width: 100%;
   min-width: 40px;
   height: 40px;
   padding: 0;
-  margin: 0 auto;
   display: grid;
   place-items: center;
   border-radius: 10px;
@@ -198,8 +201,10 @@ body.nav-collapsed .nav a span { display: none; }
 body.nav-collapsed .nav a svg { width: 22px; height: 22px; }
 body.nav-collapsed .sidebar-foot {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   padding-top: 12px;
+  gap: 8px;
 }
 
 .main {
