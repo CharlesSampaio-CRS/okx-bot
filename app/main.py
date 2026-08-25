@@ -1248,6 +1248,18 @@ async def get_portfolio() -> dict[str, Any]:
     return data
 
 
+@app.post("/api/portfolio/refresh")
+async def force_portfolio_refresh() -> dict[str, Any]:
+    """Força atualização da carteira e salva novo snapshot."""
+    if not credentials.configured():
+        raise HTTPException(400, "cadastre as API Keys primeiro")
+    try:
+        data = await portfolio.refresh_now()
+        return data
+    except OkxError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
 @app.get("/api/fx")
 async def get_fx(pair: str = "USDT-BRL") -> dict[str, Any]:
     """Cotação pública (sem credenciais) para exibir PnL em BRL."""
