@@ -254,6 +254,22 @@ async def auth_me(request: Request) -> dict[str, Any]:
     return auth.public_user(user)
 
 
+@app.get("/api/auth/known-users")
+async def auth_known_users() -> dict[str, Any]:
+    """Lista emails que já logaram (para mostrar na tela de login como opções rápidas)."""
+    if not auth.enabled():
+        return {"users": []}
+    from .mongo import col as _col
+    users = []
+    for u in _col("users").find({}, {"_id": 0, "email": 1, "name": 1, "picture": 1}).limit(10):
+        users.append({
+            "email": u.get("email", ""),
+            "name": u.get("name", ""),
+            "picture": u.get("picture", ""),
+        })
+    return {"users": users}
+
+
 @app.api_route("/api/auth/logout", methods=["GET", "POST"])
 async def auth_logout(request: Request):
     auth.drop_session(request.cookies.get(auth.COOKIE))

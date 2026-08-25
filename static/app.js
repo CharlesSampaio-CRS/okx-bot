@@ -7702,6 +7702,28 @@ function showLoginGate() {
   const gate = $("login-gate");
   if (gate) gate.hidden = false;
   document.body.classList.add("login-locked");
+  // Carregar usuários conhecidos
+  loadKnownUsers();
+}
+
+async function loadKnownUsers() {
+  try {
+    const data = await fetch("/api/auth/known-users").then(r => r.json());
+    const users = data.users || [];
+    const container = $("login-known-users");
+    if (!container || !users.length) return;
+    container.hidden = false;
+    container.innerHTML = `<p class="login-known-title">Contas anteriores</p>` +
+      users.map(u => `
+        <a href="/api/auth/login" class="login-known-item">
+          <img class="login-known-photo" src="${u.picture || '/static/img/logo-192.png'}" alt="" width="32" height="32" />
+          <div class="login-known-info">
+            <span class="login-known-name">${u.name || ''}</span>
+            <span class="login-known-email">${u.email || ''}</span>
+          </div>
+        </a>
+      `).join("");
+  } catch (_) {}
 }
 
 function hideLoginGate() {

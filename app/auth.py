@@ -87,15 +87,16 @@ def _cognito_authorize_url(request: Request, state: str) -> str:
         "redirect_uri": redirect_uri(request),
         "identity_provider": "Google",
         "state": state,
+        "prompt": "select_account",
     }
     domain = settings.cognito_domain.replace("https://", "").rstrip("/")
     return f"https://{domain}/oauth2/authorize?{urlencode(params)}"
 
 
 async def _google_url_with_account_picker(cognito_authorize: str) -> str | None:
-    """Cognito não envia prompt=select_account ao Google. Injetamos na URL real."""
+    """Cognito nem sempre repassa prompt=select_account ao Google. Tenta injetar direto."""
     try:
-        async with httpx.AsyncClient(follow_redirects=False, timeout=12.0) as client:
+        async with httpx.AsyncClient(follow_redirects=False, timeout=8.0) as client:
             res = await client.get(
                 cognito_authorize,
                 headers={"User-Agent": "Mozilla/5.0"},
