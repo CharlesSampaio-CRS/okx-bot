@@ -278,11 +278,12 @@ async def auth_known_users() -> dict[str, Any]:
 
 
 @app.put("/api/auth/profile")
-async def update_profile(request: Request, body: dict[str, Any] = {}) -> dict[str, Any]:
+async def update_profile(request: Request) -> dict[str, Any]:
     """Atualizar nome e/ou foto do perfil do usuário."""
     user = auth.user_from_request(request)
     if not user:
         raise HTTPException(401, "não autenticado")
+    body = await request.json()
     update: dict[str, Any] = {}
     name = str(body.get("name") or "").strip()
     picture = str(body.get("picture") or "").strip()
@@ -290,7 +291,6 @@ async def update_profile(request: Request, body: dict[str, Any] = {}) -> dict[st
         update["name"] = name
         update["name_edited"] = True
     if picture:
-        # Aceita data:image/* (base64) ou URL
         if len(picture) > 600_000:
             raise HTTPException(400, "imagem muito grande (máx ~500KB)")
         update["picture"] = picture
