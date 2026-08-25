@@ -7618,14 +7618,15 @@ async function loadHunter({ forceScan = false, preserveToggle = false } = {}) {
     const data = await api("/api/hunter");
     lastHunter = data;
     applyHunterSettingsToForm(data.settings);
-    // Sincronizar toggle auto-scan (só se não é scan manual)
-    if (!preserveToggle) {
+    // Toggle: só sincronizar na primeira carga (não em reloads)
+    if (!preserveToggle && !loadHunter._toggled) {
       const toggle = $("hunter-auto-toggle");
       const label = $("hunter-auto-label");
       if (toggle) {
         toggle.checked = !!data.settings?.enabled;
         if (label) label.textContent = data.settings?.enabled ? "Auto-scan ligado" : "Auto-scan desligado";
       }
+      loadHunter._toggled = true;
     }
     if (forceScan || !data.last_scan?.candidates?.length) {
       const scan = await api(`/api/hunter/scan${forceScan ? "?refresh=1" : ""}`);
@@ -7639,6 +7640,7 @@ async function loadHunter({ forceScan = false, preserveToggle = false } = {}) {
     flash("hunter-msg", err.message || "Falha ao carregar caçador", false);
   }
 }
+loadHunter._toggled = false;
 
 $("btn-hunter-scan")?.addEventListener("click", () => {
   withRefresh("btn-hunter-scan", async () => {
