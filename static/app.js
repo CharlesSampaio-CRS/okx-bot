@@ -3422,7 +3422,7 @@ const DOCS_GLOSSARY = [
   { term: "Intervalo", aliases: ["interval_min", "poll", "a cada X min"], def: "De quanto em quanto o bot acorda para olhar o mercado. Padrão de novos bots: 30 min." },
   { term: "Execução (log)", aliases: ["execuções", "execution", "log do bot"], def: "Anotação da decisão do bot a cada ciclo. Não é a ordem na OKX. Pode ser limpa com o tempo." },
   { term: "Executar agora", aliases: ["ciclo manual", "tick manual", "manual"], def: "Botão no painel do bot que roda um ciclo imediato (mesmo parado). Compra/vende se as regras fecharem. A execução fica marcada como manual." },
-  { term: "Ordem", aliases: ["order", "ordem okx", "ordem aberta", "selo ordem"], def: "Instrução real enviada à OKX (compra/venda). Aparece em Ordens. Na carteira, o selo «ordem» no token indica que esse ativo é a base de uma ordem ainda aberta; o clique abre a tela Ordens." },
+  { term: "Ordem", aliases: ["order", "ordem okx", "ordem aberta", "selo ordem"], def: "Instrução real enviada à OKX (compra/venda). Na carteira, o selo mostra lado e valor da ordem aberta; o toque abre um preview com detalhes, atalho para Ordens e cancelar." },
   { term: "Trade", aliases: ["preenchimento", "fill"], def: "Quando a ordem é (parcial ou totalmente) executada na exchange." },
   { term: "PnL", aliases: ["lucro", "prejuízo", "pnl realizado", "upl", "hoje", "semana", "mês"], def: "Lucro ou prejuízo. Na carteira, Hoje/Semana/Mês usam o histórico de preços da OKX (vela no início do período, horário de Brasília) × o saldo atual de cada token — não o snapshot local do bot. 24h usa o open24h dos tickers da OKX. Sem vela daquele período aparece —. No Spot a OKX muitas vezes manda 0 nas vendas; o app estima com custo das compras (FIFO)." },
   { term: "FIFO", aliases: ["custo médio", "custo das compras"], def: "Método: as vendas consomem as compras mais antigas primeiro para calcular o PnL." },
@@ -4273,19 +4273,37 @@ function renderWallet(data) {
   }).join("");
 }
 
+function orderNotional(o) {
+  const v = Number(o?.value);
+  if (Number.isFinite(v) && v > 0) return v;
+  const px = Number(o?.px || o?.avg_px || o?.last || 0);
+  const sz = Number(o?.remaining != null ? o.remaining : o?.sz || 0);
+  if (px > 0 && sz > 0) return px * sz;
+  return 0;
+}
+
 function openOrderMarksByBase(orders) {
   const map = {};
   for (const o of orders || []) {
     const inst = String(o.inst_id || "").toUpperCase();
     const base = inst.split("-")[0] || "";
     if (!base) continue;
-    const rec = map[base] || (map[base] = { n: 0, buy: 0, sell: 0, insts: [] });
+    const rec = map[base] || (map[base] = { n: 0, buy: 0, sell: 0, insts: [], orders: [], valueByQuote: {} });
     rec.n += 1;
+    rec.orders.push(o);
     if (String(o.side || "").toLowerCase() === "buy") rec.buy += 1;
     else rec.sell += 1;
     if (inst && !rec.insts.includes(inst)) rec.insts.push(inst);
+    const quote = orderQuoteCcy(o);
+    rec.valueByQuote[quote] = (rec.valueByQuote[quote] || 0) + orderNotional(o);
   }
   return map;
+}
+
+function formatQuoteMap(map) {
+  const entries = Object.entries(map || {}).filter(([, v]) => Number(v) > 1e-8);
+  if (!entries.length) return "";
+  return entries.map(([ccy, v]) => moneyQuote(v, ccy)).join(" · ");
 }
 
 function walletOpenOrderBadge(ccy, asset, marks) {
@@ -4295,18 +4313,79 @@ function walletOpenOrderBadge(ccy, asset, marks) {
     let cls = "mix";
     if (rec.buy && !rec.sell) cls = "buy";
     else if (rec.sell && !rec.buy) cls = "sell";
-    const label = rec.n > 1 ? `${rec.n} ordens` : "ordem";
+    const sideLab = rec.buy && !rec.sell ? "Compra" : rec.sell && !rec.buy ? "Venda" : `${rec.n} ordens`;
+    const valTxt = formatQuoteMap(rec.valueByQuote);
+    const label = rec.n === 1
+      ? (valTxt ? `${sideLab} · ${valTxt}` : sideLab)
+      : (valTxt ? `${rec.n} ordens · ${valTxt}` : `${rec.n} ordens`);
     const bits = [];
     if (rec.buy) bits.push(rec.buy === 1 ? "1 compra" : `${rec.buy} compras`);
     if (rec.sell) bits.push(rec.sell === 1 ? "1 venda" : `${rec.sell} vendas`);
-    const pairs = rec.insts.length ? ` · ${rec.insts.join(", ")}` : "";
-    const tip = `Ordem aberta: ${bits.join(" · ")}${pairs}. Abrir Ordens.`;
-    return `<button type="button" class="wallet-open-ord ${cls}" data-goto-orders="${escHtml(key)}" title="${escHtml(tip)}">${escHtml(label)}</button>`;
+    const tip = `Ordem aberta: ${bits.join(" · ")}${valTxt ? ` · ${valTxt}` : ""}${rec.insts.length ? ` · ${rec.insts.join(", ")}` : ""}. Toque para ver o preview.`;
+    return `<button type="button" class="wallet-open-ord ${cls}" data-wallet-order="${escHtml(key)}" title="${escHtml(tip)}"><span class="wallet-open-ord-side">${escHtml(sideLab)}</span>${valTxt ? `<span class="wallet-open-ord-val">${escHtml(valTxt)}</span>` : ""}</button>`;
   }
   if (walletOrdersOk) return "";
   const frozen = (Number(asset?.total_bal) || 0) - (Number(asset?.avail) || 0);
   if (frozen <= 1e-8) return "";
   return `<button type="button" class="wallet-open-ord mix" data-goto-orders="${escHtml(key)}" title="Saldo disponível menor que o total — pode haver ordem aberta. Abrir Ordens.">travado</button>`;
+}
+
+function openWalletOrderPreview(ccy) {
+  const key = String(ccy || "").toUpperCase();
+  const orders = (lastOpenOrders || []).filter((o) => String(o.inst_id || "").split("-")[0].toUpperCase() === key);
+  if (!orders.length) {
+    location.hash = "#/orders";
+    return;
+  }
+  const first = orders[0];
+  const valueByQuote = {};
+  for (const o of orders) {
+    const q = orderQuoteCcy(o);
+    valueByQuote[q] = (valueByQuote[q] || 0) + orderNotional(o);
+  }
+  const kpis = [
+    { label: "Ordens", value: String(orders.length) },
+    { label: "Valor", value: formatQuoteMap(valueByQuote) || "—" },
+  ];
+  const sections = orders.map((o) => {
+    const quote = orderQuoteCcy(o);
+    const side = String(o.side || "").toLowerCase() === "buy" ? "Compra" : "Venda";
+    const px = o.px || o.avg_px;
+    const fill = orderFillPct(o);
+    const val = orderNotional(o);
+    const rows = [
+      ["Par", o.inst_id || "—"],
+      ["Lado", side, o.side === "buy" ? "buy" : "sell"],
+      ["Tipo", TYPE_LABEL[o.ord_type] || o.ord_type || "—"],
+      ["Quantidade", fmt(Number(o.sz), 8)],
+      ["Preço", o.ord_type === "market" ? "Mercado" : (px != null ? fmt(px, 6) : "—")],
+      ["Valor", val > 0 ? moneyQuote(val, quote) : "—"],
+      ["Executado", fill != null ? `${Math.round(fill)}%` : "—"],
+      ["Criada", fmtTs(o.created_at || o.updated_at)],
+    ];
+    if (o.pnl != null && Number.isFinite(Number(o.pnl))) {
+      const pnl = Number(o.pnl);
+      rows.push(["PnL est.", `${fmtPnl(pnl)} ${quote}`, pnl > 0 ? "buy" : pnl < 0 ? "sell" : ""]);
+    }
+    return { title: `${side} ${o.inst_id || ""}`.trim(), rows };
+  });
+  const one = orders.length === 1 ? orders[0] : null;
+  openAppModal({
+    title: `Ordem aberta · ${key}`,
+    hint: "Preview da ordem Spot ainda aberta na OKX.",
+    icon: first.icon || "",
+    iconAlt: first.icon_alt || "",
+    kpis,
+    sections,
+    confirmLabel: "Ver em Ordens",
+    confirmClass: "btn-primary",
+    cancelLabel: "Fechar",
+    action: { type: "goto-orders" },
+    secondaryLabel: one ? "Cancelar ordem" : "",
+    secondaryAction: one
+      ? { type: "cancel", inst_id: one.inst_id, ord_id: one.ord_id }
+      : null,
+  });
 }
 
 async function loadWallet() {
@@ -4407,6 +4486,11 @@ $("page-wallet")?.addEventListener("click", (ev) => {
 });
 
 $("wallet-body").addEventListener("click", (ev) => {
+  const preview = ev.target.closest("button[data-wallet-order]");
+  if (preview) {
+    openWalletOrderPreview(preview.getAttribute("data-wallet-order"));
+    return;
+  }
   const ordMark = ev.target.closest("button[data-goto-orders]");
   if (ordMark) {
     location.hash = "#/orders";
@@ -6290,6 +6374,23 @@ $("app-modal-secondary")?.addEventListener("click", async () => {
   }
   if (action.type === "bot-preflight-rerun") {
     await openStartBotModal(action.id, { force: true });
+    return;
+  }
+  if (action.type === "cancel") {
+    modalBusy = true;
+    try {
+      const res = await api("/api/orders/cancel", {
+        method: "POST",
+        body: JSON.stringify({ inst_id: action.inst_id, ord_id: action.ord_id }),
+      });
+      closeModal();
+      flash("w-msg", res?.already_gone ? (res.message || "Ordem já executada ou cancelada") : "Ordem cancelada", true);
+      await loadWallet();
+    } catch (err) {
+      flash("w-msg", err.message || "Falha ao cancelar", false);
+    } finally {
+      modalBusy = false;
+    }
   }
 });
 $("app-modal").addEventListener("click", (ev) => {
@@ -6352,6 +6453,11 @@ $("app-modal-confirm").addEventListener("click", async () => {
   pendingAction = null;
   $("app-modal-confirm").disabled = true;
   try {
+    if (action.type === "goto-orders") {
+      closeModal();
+      location.hash = "#/orders";
+      return;
+    }
     if (action.type === "bot-preflight-adjust") {
       const id = action.id;
       closeModal();

@@ -1101,16 +1101,35 @@ html.theme-dark .lab-token-results {
 }
 .wallet-open-ord {
   flex-shrink: 0;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
   border: 0;
   cursor: pointer;
   font: inherit;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
-  text-transform: uppercase;
-  padding: 3px 7px;
-  border-radius: 999px;
+  padding: 4px 8px;
+  border-radius: 10px;
   line-height: 1.2;
+  text-align: left;
+  max-width: 140px;
+}
+.wallet-open-ord-side {
+  text-transform: uppercase;
+}
+.wallet-open-ord-val {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.92;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 124px;
 }
 .wallet-open-ord.buy {
   background: #ecfdf5;
