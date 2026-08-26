@@ -1102,9 +1102,10 @@ html.theme-dark .lab-token-results {
 .wallet-open-ord {
   flex-shrink: 0;
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px;
   border: 0;
   cursor: pointer;
   font: inherit;
@@ -1115,7 +1116,8 @@ html.theme-dark .lab-token-results {
   border-radius: 10px;
   line-height: 1.2;
   text-align: left;
-  max-width: 168px;
+  max-width: none;
+  white-space: nowrap;
 }
 .wallet-open-ord-side {
   text-transform: uppercase;
@@ -1128,9 +1130,6 @@ html.theme-dark .lab-token-results {
   text-transform: none;
   opacity: 0.92;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 152px;
 }
 .wallet-open-ord.buy {
   background: #ecfdf5;
