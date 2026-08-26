@@ -169,6 +169,7 @@ let pendingAction = null;
 let pendingSecondaryAction = null;
 let modalBusy = false;
 let lastOpenOrders = [];
+let walletOrdersOk = false;
 let lastBotExecutions = [];
 let lastTokens = [];
 let tokensSort = { key: "vol", dir: "desc" };
@@ -3419,7 +3420,7 @@ const DOCS_GLOSSARY = [
   { term: "Intervalo", aliases: ["interval_min", "poll", "a cada X min"], def: "De quanto em quanto o bot acorda para olhar o mercado. Padrão de novos bots: 30 min." },
   { term: "Execução (log)", aliases: ["execuções", "execution", "log do bot"], def: "Anotação da decisão do bot a cada ciclo. Não é a ordem na OKX. Pode ser limpa com o tempo." },
   { term: "Executar agora", aliases: ["ciclo manual", "tick manual", "manual"], def: "Botão no painel do bot que roda um ciclo imediato (mesmo parado). Compra/vende se as regras fecharem. A execução fica marcada como manual." },
-  { term: "Ordem", aliases: ["order", "ordem okx"], def: "Instrução real enviada à OKX (compra/venda). Aparece em Ordens / histórico." },
+  { term: "Ordem", aliases: ["order", "ordem okx", "ordem aberta", "selo ordem"], def: "Instrução real enviada à OKX (compra/venda). Aparece em Ordens. Na carteira, o selo «ordem» no token indica que esse ativo é a base de uma ordem ainda aberta; o clique abre a tela Ordens." },
   { term: "Trade", aliases: ["preenchimento", "fill"], def: "Quando a ordem é (parcial ou totalmente) executada na exchange." },
   { term: "PnL", aliases: ["lucro", "prejuízo", "pnl realizado", "upl", "hoje", "semana", "mês"], def: "Lucro ou prejuízo. Na carteira, Hoje/Semana/Mês usam o histórico de preços da OKX (vela no início do período, horário de Brasília) × o saldo atual de cada token — não o snapshot local do bot. 24h usa o open24h dos tickers da OKX. Sem vela daquele período aparece —. No Spot a OKX muitas vezes manda 0 nas vendas; o app estima com custo das compras (FIFO)." },
   { term: "FIFO", aliases: ["custo médio", "custo das compras"], def: "Método: as vendas consomem as compras mais antigas primeiro para calcular o PnL." },
@@ -4216,6 +4217,7 @@ function renderWallet(data) {
     body.innerHTML = `<tr><td class="empty" colspan="8">Nenhum token com saldo ≥ ${WALLET_DUST_MIN}. Ative «Saldos &lt; 0,001» para ver posições menores.</td></tr>`;
     return;
   }
+  const openMarks = openOrderMarksByBase(lastOpenOrders);
   body.innerHTML = assets.map((a) => {
     const chg = a.chg24 == null ? "—" : fmtPct(a.chg24);
     const chgCls = a.chg24 > 0 ? "buy" : a.chg24 < 0 ? "sell" : "";
@@ -4247,11 +4249,15 @@ function renderWallet(data) {
       ? String(a.ccy || "").toUpperCase()
       : (a.spot_inst || instForWalletCcy(a.ccy) || a.ccy);
     const chartInst = escHtml(chartTarget);
+    const openBadge = walletOpenOrderBadge(a.ccy, a, openMarks);
     return `<tr>
       <td>
-        <div class="token-cell token-cell-link" data-chart-inst="${chartInst}" title="Abrir gráfico / saldo" role="link" tabindex="0">
-          <img class="token-icon" src="${a.icon || ""}" alt="" onerror="this.onerror=null;this.src='${a.icon_alt || ""}'" />
-          <span>${a.ccy}${extra.length ? `<small>${extra.join(" · ")}</small>` : ""}</span>
+        <div class="wallet-token-row">
+          <div class="token-cell token-cell-link" data-chart-inst="${chartInst}" title="Abrir gráfico / saldo" role="link" tabindex="0">
+            <img class="token-icon" src="${a.icon || ""}" alt="" onerror="this.onerror=null;this.src='${a.icon_alt || ""}'" />
+            <span>${a.ccy}${extra.length ? `<small>${extra.join(" · ")}</small>` : ""}</span>
+          </div>
+          ${openBadge}
         </div>
       </td>
       <td class="num">${fmt(a.total_bal, 8)}</td>
@@ -4265,9 +4271,54 @@ function renderWallet(data) {
   }).join("");
 }
 
+function openOrderMarksByBase(orders) {
+  const map = {};
+  for (const o of orders || []) {
+    const inst = String(o.inst_id || "").toUpperCase();
+    const base = inst.split("-")[0] || "";
+    if (!base) continue;
+    const rec = map[base] || (map[base] = { n: 0, buy: 0, sell: 0, insts: [] });
+    rec.n += 1;
+    if (String(o.side || "").toLowerCase() === "buy") rec.buy += 1;
+    else rec.sell += 1;
+    if (inst && !rec.insts.includes(inst)) rec.insts.push(inst);
+  }
+  return map;
+}
+
+function walletOpenOrderBadge(ccy, asset, marks) {
+  const key = String(ccy || "").toUpperCase();
+  const rec = marks[key];
+  if (rec) {
+    let cls = "mix";
+    if (rec.buy && !rec.sell) cls = "buy";
+    else if (rec.sell && !rec.buy) cls = "sell";
+    const label = rec.n > 1 ? `${rec.n} ordens` : "ordem";
+    const bits = [];
+    if (rec.buy) bits.push(rec.buy === 1 ? "1 compra" : `${rec.buy} compras`);
+    if (rec.sell) bits.push(rec.sell === 1 ? "1 venda" : `${rec.sell} vendas`);
+    const pairs = rec.insts.length ? ` · ${rec.insts.join(", ")}` : "";
+    const tip = `Ordem aberta: ${bits.join(" · ")}${pairs}. Abrir Ordens.`;
+    return `<button type="button" class="wallet-open-ord ${cls}" data-goto-orders="${escHtml(key)}" title="${escHtml(tip)}">${escHtml(label)}</button>`;
+  }
+  if (walletOrdersOk) return "";
+  const frozen = (Number(asset?.total_bal) || 0) - (Number(asset?.avail) || 0);
+  if (frozen <= 1e-8) return "";
+  return `<button type="button" class="wallet-open-ord mix" data-goto-orders="${escHtml(key)}" title="Saldo disponível menor que o total — pode haver ordem aberta. Abrir Ordens.">travado</button>`;
+}
+
 async function loadWallet() {
   try {
-    const data = await api("/api/portfolio");
+    const [portRes, openRes] = await Promise.allSettled([
+      api("/api/portfolio"),
+      api("/api/orders/open"),
+    ]);
+    if (openRes.status === "fulfilled") {
+      lastOpenOrders = openRes.value?.orders || [];
+      walletOrdersOk = true;
+    }
+    if (portRes.status !== "fulfilled") throw portRes.reason;
+    const data = portRes.value;
     lastWallet = data;
     lastWalletTs = Date.now();
     setUsdtBrlRate(data.usdt_brl);
@@ -4354,6 +4405,11 @@ $("page-wallet")?.addEventListener("click", (ev) => {
 });
 
 $("wallet-body").addEventListener("click", (ev) => {
+  const ordMark = ev.target.closest("button[data-goto-orders]");
+  if (ordMark) {
+    location.hash = "#/orders";
+    return;
+  }
   const botBtn = ev.target.closest("button[data-bot]");
   if (botBtn) {
     goToBot(botBtn.dataset.bot);
@@ -4776,6 +4832,8 @@ async function loadOrderTables(opts = {}) {
     fetchOrderHistory(forceHist),
   ]);
   lastOpenOrders = open.orders || [];
+  walletOrdersOk = true;
+  if (lastWallet && pageId() === "wallet") renderWallet(lastWallet);
   renderOpenSummary(lastOpenOrders);
   $("orders-open").innerHTML = orderRows(lastOpenOrders, true);
   renderHistTable(hist);
