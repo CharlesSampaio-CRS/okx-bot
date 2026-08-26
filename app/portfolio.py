@@ -60,6 +60,7 @@ class PortfolioWatcher:
         data = dict(self._last.get(key) or {})
         data.setdefault("assets", [])
         data.setdefault("total_eq", None)
+        data["total_eq"] = data.get("total_eq")
         if data.get("total_eq") is not None:
             data.setdefault("spot_upl", 0.0)
             data.setdefault("pnl_today", 0.0)

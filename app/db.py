@@ -485,18 +485,12 @@ def get_config(bot_id: str) -> BotConfig:
 
 
 def portfolio_interval_min() -> float:
-    """Intervalo do watcher de carteira (global): usa o bot mais recente, senão 2 min."""
-    row = col("bots").find_one(
-        {},
-        {"portfolio_interval_min": 1},
-        sort=[("updated_at", DESCENDING)],
-    )
-    if row and row.get("portfolio_interval_min") is not None:
-        try:
-            return max(1.0, min(60.0, float(row["portfolio_interval_min"])))
-        except (TypeError, ValueError):
-            pass
-    return 2.0
+    """Intervalo do watcher de carteira: Configurações → Portfolio (padrão 2 min)."""
+    try:
+        v = float(get_bot_defaults().get("portfolio_interval_min") or 2.0)
+        return max(1.0, min(60.0, v))
+    except (TypeError, ValueError):
+        return 2.0
 
 
 def save_config(cfg: BotConfig, bot_id: str | None = None) -> BotConfig:
@@ -1085,6 +1079,7 @@ def get_bot_defaults() -> dict[str, Any]:
     out["default_interval_min"] = max(1.0, min(1440.0, float(out.get("default_interval_min") or 30)))
     out["exec_cleanup_wait_hours"] = max(1.0, min(168.0, float(out.get("exec_cleanup_wait_hours") or 6)))
     out["exec_cleanup_executed_days"] = max(1.0, min(90.0, float(out.get("exec_cleanup_executed_days") or 14)))
+    out["portfolio_interval_min"] = max(1.0, min(60.0, float(out.get("portfolio_interval_min") or 2)))
     return out
 
 
@@ -1097,6 +1092,7 @@ def save_bot_defaults(patch: dict[str, Any]) -> dict[str, Any]:
     cur["default_interval_min"] = max(1.0, min(1440.0, float(cur["default_interval_min"])))
     cur["exec_cleanup_wait_hours"] = max(1.0, min(168.0, float(cur["exec_cleanup_wait_hours"])))
     cur["exec_cleanup_executed_days"] = max(1.0, min(90.0, float(cur["exec_cleanup_executed_days"])))
+    cur["portfolio_interval_min"] = max(1.0, min(60.0, float(cur.get("portfolio_interval_min") or 2)))
     col("settings").update_one(
         {"_id": _settings_id("bot_defaults")},
         {"$set": {**cur, "updated_at": _now()}},

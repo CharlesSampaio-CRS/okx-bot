@@ -1309,8 +1309,10 @@ async def lab_simulate(body: LabSimulate) -> dict[str, Any]:
 async def get_portfolio() -> dict[str, Any]:
     if not credentials.configured():
         raise HTTPException(400, "cadastre as API Keys primeiro")
+    await portfolio.ensure_started()
     data = portfolio.snapshot()
-    if data.get("total_eq") is None and not data.get("last_error"):
+    eq = data.get("total_eq")
+    if eq is None and not data.get("last_error"):
         try:
             data = await portfolio.refresh_now()
         except OkxError as exc:

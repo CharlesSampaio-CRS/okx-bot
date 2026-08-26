@@ -158,6 +158,7 @@ let lastWalletTs = 0;
 let usdtBrlRate = null;
 let lastPnlData = null;
 let pollTimer = null;
+let walletPollTimer = null;
 let refreshInFlight = false;
 let lastTradesFetch = 0;
 let pollRunningMode = null;
@@ -3343,10 +3344,29 @@ function scheduleNextPoll() {
   }, pollIntervalMs(running));
 }
 
+function walletPollMs() {
+  const min = Number(lastWallet?.interval_min ?? lastStatus?.portfolio_interval_min ?? 2);
+  const n = Number.isFinite(min) && min >= 1 ? min : 2;
+  return Math.round(n * 60 * 1000);
+}
+
+function startWalletPolling() {
+  if (walletPollTimer) clearTimeout(walletPollTimer);
+  walletPollTimer = null;
+  if (document.hidden) return;
+  walletPollTimer = setTimeout(async () => {
+    try {
+      if (pageId() === "wallet") await loadWallet({ refresh: true });
+    } catch (_) { /* ignore */ }
+    startWalletPolling();
+  }, walletPollMs());
+}
+
 function startPolling() {
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = null;
   scheduleNextPoll();
+  startWalletPolling();
 }
 
 async function refresh(opts = {}) {
@@ -3363,6 +3383,18 @@ async function refresh(opts = {}) {
       renderTrades(status.trades);
     }
     await ensureFxRate();
+    if (page === "wallet" && lastWallet && status.wallet_eq != null) {
+      lastWallet.total_eq = status.wallet_eq;
+      lastWallet.pnl_today = status.wallet_pnl_today ?? lastWallet.pnl_today;
+      lastWallet.pnl_24h = status.wallet_pnl_24h ?? lastWallet.pnl_24h;
+      lastWallet.pnl_week = status.wallet_pnl_week ?? lastWallet.pnl_week;
+      lastWallet.pnl_month = status.wallet_pnl_month ?? lastWallet.pnl_month;
+      lastWallet.spot_upl = status.wallet_spot_upl ?? lastWallet.spot_upl;
+      lastWallet.updated_at = status.wallet_updated_at || lastWallet.updated_at;
+      lastWallet.usdt_brl = status.usdt_brl ?? lastWallet.usdt_brl;
+      lastWallet.interval_min = status.portfolio_interval_min ?? lastWallet.interval_min;
+      renderWallet(lastWallet);
+    }
     repaintPnlKpis();
     setTonePnl(
       $("m-wallet-upl"),
@@ -4102,7 +4134,8 @@ async function loadConfig() {
     const pForm = $("portfolio-settings-form");
     if (pForm) {
       const st = await api("/api/status");
-      pForm.portfolio_interval_min.value = st.portfolio_interval_min || 2;
+      const defs = await api("/api/settings/bot-defaults");
+      pForm.portfolio_interval_min.value = defs.portfolio_interval_min || st.portfolio_interval_min || 2;
     }
   } catch (_) {}
   // LLM status
@@ -4189,10 +4222,14 @@ function syncWalletSortHeaders() {
 }
 
 function renderWallet(data) {
+  const prevEq = lastWallet?.total_eq ?? lastWallet?.wallet_eq;
   lastWallet = data;
   setUsdtBrlRate(data.usdt_brl);
-  const total = data.total_eq;
-  $("w-total").textContent = total != null ? `$${fmt(total, 2)}` : "—";
+  const raw = data.total_eq ?? data.wallet_eq ?? prevEq;
+  const total = raw == null || Number.isNaN(Number(raw)) ? null : Number(raw);
+  if (total != null) lastWallet.total_eq = total;
+  const totEl = $("w-total");
+  if (totEl) totEl.textContent = total != null ? `$${fmt(total, 2)}` : "—";
   const brlEl = $("w-total-brl");
   if (brlEl) {
     const brl = total != null ? toBrl(total, "USD") : null;
@@ -4400,10 +4437,13 @@ function openWalletOrderPreview(ccy) {
   });
 }
 
-async function loadWallet() {
+async function loadWallet({ refresh = false } = {}) {
   try {
+    const portP = refresh
+      ? api("/api/portfolio/refresh", { method: "POST" })
+      : api("/api/portfolio");
     const [portRes, openRes] = await Promise.allSettled([
-      api("/api/portfolio"),
+      portP,
       api("/api/orders/open"),
     ]);
     if (openRes.status === "fulfilled") {
@@ -4674,7 +4714,9 @@ $("portfolio-settings-form")?.addEventListener("submit", async (ev) => {
       method: "PUT",
       body: JSON.stringify({ portfolio_interval_min: val }),
     });
-    flash("portfolio-settings-msg", `Intervalo do portfolio: ${val} min`, true);
+    if (lastWallet) lastWallet.interval_min = val;
+    flash("portfolio-settings-msg", `Atualização da carteira: a cada ${val} min`, true);
+    startWalletPolling();
   } catch (err) {
     flash("portfolio-settings-msg", err.message, false);
   }
@@ -8467,9 +8509,12 @@ async function boot() {
     if (document.hidden) {
       if (pollTimer) clearTimeout(pollTimer);
       pollTimer = null;
+      if (walletPollTimer) clearTimeout(walletPollTimer);
+      walletPollTimer = null;
       return;
     }
     refresh();
+    if (pageId() === "wallet") loadWallet({ refresh: true });
     startPolling();
   });
 }
