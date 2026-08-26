@@ -7,7 +7,7 @@ const TITLES = {
   tokens: ["Tokens", "Pares Spot · ordenar e negociar"],
   orders: ["Ordens", "Spot · compra, venda e histórico"],
   lab: ["Lab", "Simule queda e alvo no histórico Spot — sem ordem real"],
-  hunter: ["Caçador", "Radar Spot · top 10 · melhor estratégia por token"],
+  hunter: ["Caçador", "Radar Spot · top 30 · melhor estratégia por token"],
   strategies: ["Estratégias", "Catálogo de presets · valide no token · crie o bot"],
   profile: ["Perfil", "Dados da conta · nome · login"],
   docs: ["Como funciona", "Manual pesquisável · dicionário · FAQ"],
@@ -269,8 +269,33 @@ function quoteButtonsHtml(active) {
   }).join("");
 }
 
+const TZ_SP = "America/Sao_Paulo";
+
+function parseUtcDate(ts) {
+  if (ts instanceof Date) return Number.isNaN(ts.getTime()) ? null : ts;
+  let s = String(ts || "").trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2} \d/.test(s)) s = s.replace(" ", "T");
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s) && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(s)) s += "Z";
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function fmtTs(ts) {
-  return String(ts || "").replace("T", " ").replace("+00:00", "").replace("Z", "");
+  const d = parseUtcDate(ts);
+  if (!d) return "—";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ_SP,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const get = (t) => parts.find((p) => p.type === t)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")}:${get("second")}`;
 }
 
 function fmtIntervalMin(min) {
@@ -724,6 +749,10 @@ function setRunningUI(runningCount) {
   applyKeysLock();
   const el = $("run-label");
   if (!el) return;
+  if (!botsOn()) {
+    el.hidden = true;
+    return;
+  }
   el.hidden = false;
   const active = runningCount > 0;
   el.textContent = active ? "Bot ativo" : "Parado";
@@ -1408,6 +1437,7 @@ function renderBots(bots) {
 
 function renderStatus(s) {
   lastStatus = s;
+  applyBotsEnabled();
   setUsdtBrlRate(s.usdt_brl);
   setModeUI(s.okx_flag, s.keys_configured);
   const bots = s.bots || [];
@@ -1705,7 +1735,7 @@ function stratRankRowsHtml(rows, context = "strat") {
       <div class="strat-rank-actions">
         <span class="pill ${ok ? "on" : sum.verdict === "revisar" ? "warn" : "bad"}">${ok ? "Aprovada" : (sum.grade || sum.verdict || "—")}</span>
         <button type="button" class="btn btn-ghost" data-${context}-strat-run="${escHtml(strat.id)}">Detalhe</button>
-        <button type="button" class="btn btn-primary" data-${context}-strat-bot="${escHtml(strat.id)}">Criar bot</button>
+        <button type="button" class="btn btn-primary js-bots-ui" data-${context}-strat-bot="${escHtml(strat.id)}">Criar bot</button>
       </div>
     </div>`;
   }).join("");
@@ -1861,13 +1891,13 @@ function renderLabResult(res) {
 
   const createBtn = $("btn-lab-create-bot");
   if (createBtn) {
-    createBtn.hidden = false;
+    createBtn.hidden = !botsOn();
     createBtn.textContent = q.recommend_create
       ? "Criar bot (aprovado)"
       : "Criar bot mesmo assim";
     createBtn.className = q.recommend_create
-      ? "btn btn-primary btn-cta"
-      : "btn btn-ghost btn-cta";
+      ? "btn btn-primary btn-cta js-bots-ui"
+      : "btn btn-ghost btn-cta js-bots-ui";
   }
 
   const metrics = $("lab-metrics");
@@ -2484,7 +2514,7 @@ function renderStratCatalog() {
     <div class="strat-card-actions">
       <button type="button" class="btn btn-ghost" data-strat-detail-btn="${escHtml(s.id)}">Detalhe</button>
       <button type="button" class="btn btn-ghost" data-strat-apply="${escHtml(s.id)}">Lab</button>
-      <button type="button" class="btn btn-primary" data-strat-bot-id="${escHtml(s.id)}">Criar bot</button>
+      <button type="button" class="btn btn-primary js-bots-ui" data-strat-bot-id="${escHtml(s.id)}">Criar bot</button>
     </div>
   </article>`;
   }).join("");
@@ -3379,6 +3409,8 @@ const DOCS_GLOSSARY = [
   { term: "Taxa / Fee", aliases: ["fee", "taker", "maker", "taxa okx"], def: "Cobrança da exchange por trade. Taker costuma ser a taxa de ordem a mercado. Entra no custo do ciclo." },
   { term: "Queda %", aliases: ["buy_pct", "buy pct", "gatilho de compra"], def: "Quanto o preço precisa cair vs a referência para o bot comprar." },
   { term: "Lucro alvo %", aliases: ["profit_target", "alvo", "take profit"], def: "Quanto de lucro (após custos) o bot espera antes de vender." },
+  { term: "Alvo sugerido", aliases: ["preço alvo", "target price", "venda sugerida", "take profit preço"], def: "No Caçador: preço de venda se você comprar agora no last. Combina estilo da estratégia, mediana do bounce após dips parecidos e teto k×ATR diário (padrão de mercado), mais taxa ida+volta + spread. Não dispara ordem." },
+  { term: "Ativar bots", aliases: ["desativar bots", "bots off", "esconder bots"], def: "Interruptor em Configurações. Desligado: para todos os bots, some o menu Bot/Lab/Estratégias e não deixa criar/iniciar. Carteira e ordens manuais seguem." },
   { term: "Referência", aliases: ["ref_price", "preço de referência", "trailing"], def: "Preço-base usado para medir a queda. Pode acompanhar máximas enquanto o bot está flat (trailing)." },
   { term: "Flat", aliases: ["sem posição", "fora do mercado"], def: "Estado sem token comprado pelo bot — só esperando o gatilho de compra." },
   { term: "Ciclo", aliases: ["ciclo compra venda", "round trip"], def: "Uma volta completa: compra → venda (com ou sem lucro). O Lab conta ciclos no histórico." },
@@ -3403,7 +3435,7 @@ const DOCS_GLOSSARY = [
   { term: "Funding / Trading", aliases: ["funding", "trading account", "transferir"], def: "Contas OKX. O bot gasta do trading. Dinheiro no funding precisa ser transferido antes." },
   { term: "Login Google", aliases: ["cognito", "entrar", "oauth"], def: "Entrada com a conta Google. Cada e-mail tem as próprias chaves OKX e bots." },
   { term: "API Key", aliases: ["chaves", "secret", "passphrase"], def: "Credenciais da OKX no servidor, ligadas ao seu e-mail. Prefira Read+Trade sem withdraw. O secret não é reexibido." },
-  { term: "Conta OKX", aliases: ["várias contas", "outra conta", "multi conta", "subconta", "secret", "api key"], def: "Um conjunto de API Key + Secret + Passphrase. Cada login Google tem só uma. Para usar outro e-mail, clique em Sair e escolha a conta no Google." },
+  { term: "Conta OKX", aliases: ["várias contas", "outra conta", "multi conta", "subconta", "secret", "api key", "sair"], def: "Um conjunto de API Key + Secret + Passphrase. Cada login Google tem só uma. Para usar outro e-mail, clique em Sair (no computador, embaixo do menu; no celular, na faixa do topo ao lado do logo) e escolha a conta no Google. No celular botões e confirmações empilham; tabelas deslizam na horizontal." },
   { term: "Demo / Live", aliases: ["simulated", "flag", "demo trading"], def: "Demo = ambiente simulado OKX. Live = dinheiro real." },
   { term: "Limites USD", aliases: ["min_usd", "max_usd", "teto"], def: "Mínimo e máximo por ordem (manual ou bot), convertidos para USD nas Configurações." },
   { term: "Estratégia", aliases: ["preset", "scalp", "balanced"], def: "Receita pronta de queda/alvo/taxa. Pode validar no Lab/Caçador e ainda editar na mão." },
@@ -3689,6 +3721,7 @@ function botForWalletCcy(ccy) {
 }
 
 function walletCanCreateBot(ccy) {
+  if (!botsOn()) return false;
   const key = String(ccy || "").toUpperCase();
   if (!key || STABLES.has(key)) return false;
   return !botForWalletCcy(key);
@@ -4010,9 +4043,23 @@ function renderBotDefaults(d) {
   lastBotDefaults = d || lastBotDefaults;
   const form = $("bot-defaults-form");
   if (!form) return;
+  const en = $("cfg-bots-enabled");
+  if (en) en.checked = !!d?.bots_enabled;
   form.default_interval_min.value = d?.default_interval_min ?? 30;
   form.exec_cleanup_wait_hours.value = d?.exec_cleanup_wait_hours ?? 6;
   form.exec_cleanup_executed_days.value = d?.exec_cleanup_executed_days ?? 14;
+}
+
+function botsOn() {
+  return lastStatus?.bots_enabled === true;
+}
+
+function applyBotsEnabled() {
+  document.body.classList.toggle("bots-off", !botsOn());
+  const p = pageId();
+  if (!botsOn() && (p === "overview" || p === "lab" || p === "strategies")) {
+    location.hash = "#/wallet";
+  }
 }
 
 function defaultBotIntervalMin() {
@@ -4044,7 +4091,7 @@ async function loadConfig() {
       hForm.max_drop_pct.value = hs.max_drop_pct || 35;
       hForm.min_vol_usd.value = hs.min_vol_usd || 80000;
       hForm.max_spread_pct.value = hs.max_spread_pct || 1;
-      hForm.top_n.value = hs.top_n || 10;
+      hForm.top_n.value = hs.top_n || 30;
     }
   } catch (_) {}
   // Portfolio interval (usa bot-defaults ou endpoint dedicado)
@@ -4150,7 +4197,7 @@ function renderWallet(data) {
   }
   renderPnlKpi(data);
   $("w-updated").textContent = data.updated_at
-    ? `Atualizado ${String(data.updated_at).replace("T", " ").replace("+00:00", " UTC")}`
+    ? `Atualizado ${fmtTs(data.updated_at)}`
     : data.last_error || "";
   if (data.last_error) flash("w-msg", data.last_error, false);
   else flash("w-msg", "", true);
@@ -4408,6 +4455,7 @@ $("bot-defaults-form")?.addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const form = ev.currentTarget;
   const payload = {
+    bots_enabled: !!$("cfg-bots-enabled")?.checked,
     default_interval_min: Number(form.default_interval_min.value),
     exec_cleanup_wait_hours: Number(form.exec_cleanup_wait_hours.value),
     exec_cleanup_executed_days: Number(form.exec_cleanup_executed_days.value),
@@ -4422,9 +4470,13 @@ $("bot-defaults-form")?.addEventListener("submit", async (ev) => {
       body: JSON.stringify(payload),
     });
     renderBotDefaults(saved);
+    if (lastStatus) lastStatus.bots_enabled = !!saved.bots_enabled;
+    applyBotsEnabled();
     flash(
       "bot-defaults-msg",
-      `Salvo: bots novos a cada ${fmt(saved.default_interval_min, 0)} min · limpeza waits ${fmt(saved.exec_cleanup_wait_hours, 0)}h`,
+      saved.bots_enabled
+        ? `Bots ligados · intervalo ${fmt(saved.default_interval_min, 0)} min`
+        : "Bots desligados — todos parados e ocultos no menu",
       true,
     );
   } catch (err) {
@@ -6552,6 +6604,10 @@ $("app-modal-confirm").addEventListener("click", async () => {
 });
 
 async function openCreateBotModal(seed = {}) {
+  if (!botsOn()) {
+    flash("msg", "Bots desativados em Configurações", false);
+    return;
+  }
   await ensureBotStrategies();
   const plainNew = seed.strategy_id === undefined && seed.buy_pct === undefined;
   const strategyId = seed.strategy_id ?? (plainNew ? "balanced" : "");
@@ -7122,11 +7178,6 @@ const HUNTER_HORIZONS = {
 
 function applyHunterSettingsToForm(s) {
   if (!s) return;
-  if ($("hunter-budget")) {
-    const v = Number(s.quote_amount || 0);
-    $("hunter-budget").value = v > 0 ? v : "";
-  }
-  if ($("hunter-budget-ccy") && s.budget_ccy) $("hunter-budget-ccy").value = s.budget_ccy;
   if ($("hunter-min-drop")) $("hunter-min-drop").value = s.min_drop_pct ?? 1.5;
   if ($("hunter-max-drop")) $("hunter-max-drop").value = s.max_drop_pct ?? 35;
   if ($("hunter-min-vol")) $("hunter-min-vol").value = s.min_vol_usd ?? 80000;
@@ -7135,10 +7186,9 @@ function applyHunterSettingsToForm(s) {
 }
 
 function hunterSettingsFromForm() {
-  const budgetRaw = String($("hunter-budget")?.value || "").trim();
   return {
-    quote_amount: budgetRaw === "" ? 0 : Number(budgetRaw),
-    budget_ccy: $("hunter-budget-ccy")?.value || "BRL",
+    quote_amount: 0,
+    budget_ccy: "BRL",
     horizon: "all",
     min_drop_pct: Number($("hunter-min-drop")?.value || 1.5),
     max_drop_pct: Number($("hunter-max-drop")?.value || 35),
@@ -7146,19 +7196,14 @@ function hunterSettingsFromForm() {
     max_spread_pct: Number($("hunter-max-spread")?.value || 1),
     require_tradeable: !!$("hunter-tradeable")?.checked,
     validate_days: 90,
-    top_n: 10,
+    top_n: 30,
   };
 }
 
 function renderHunterStatus(data) {
   const el = $("hunter-status");
   if (!el) return;
-  const s = data?.settings || {};
   const scan = data?.last_scan || lastHunterScan;
-  const budget = Number(s.quote_amount || 0);
-  const budgetBit = budget > 0
-    ? `${fmt(budget, 2)} ${s.budget_ccy || "BRL"}`
-    : "limite de ordem do sistema";
   const n = scan?.candidates?.length || 0;
   let title = "Pronto";
   let step = "Clique em Analisar agora — avalia dia, semana e mês em cada token.";
@@ -7175,7 +7220,7 @@ function renderHunterStatus(data) {
   el.className = `hunter-status ${tone}`;
   el.innerHTML = `<div class="hs-title">${escHtml(title)}</div>
     <div class="hs-step">${escHtml(step)}</div>
-    <div class="hs-meta">Referência: <strong>${escHtml(budgetBit)}</strong> · modo radar (sem automação)</div>`;
+    <div class="hs-meta">Modo radar (sem automação)</div>`;
 
   const modePill = $("hunter-mode-pill");
   if (modePill) {
@@ -7202,7 +7247,7 @@ async function openHunterBotModal(c) {
   const vTot = c.validation_total != null ? c.validation_total : checks.length;
   const aporte = bs.aporte != null
     ? bs.aporte
-    : (Number($("hunter-budget")?.value) || Number(lastHunterScan?.order_usd) || "");
+    : (Number(lastHunterScan?.order_usd) || "");
   const canCreate = !!bs.id;
 
   fillBotModalForm({
@@ -7212,7 +7257,7 @@ async function openHunterBotModal(c) {
     quote_amount: aporte,
     entry_mode: "quote",
     buy_pct: bs.buy_pct ?? 2,
-    profit_target_pct: bs.profit_target_pct ?? 1,
+    profit_target_pct: c.suggested_target_pct ?? bs.profit_target_pct ?? 1,
     fee_rate_pct: bs.fee_rate_pct ?? 0.10,
     interval_min: defaultBotIntervalMin(),
     run_days: normalizeBotRunDays(bs.days || 30),
@@ -7241,8 +7286,14 @@ async function openHunterBotModal(c) {
       </div>`
     : `<p class="hint">Sem estratégia automática — ajuste queda/alvo no formulário abaixo.</p>`;
 
+  const tgt = hunterSuggestedTarget(c);
   const kpis = [
     { label: "Queda 24h", value: c.drop_pct != null ? fmtPct(-Math.abs(c.drop_pct)) : "—", tone: "sell" },
+    {
+      label: "Alvo sugerido",
+      value: tgt ? `${fmtPx(tgt.px)}  (+${fmt(tgt.pct, 1)}%)` : "—",
+      tone: tgt ? "buy" : undefined,
+    },
     {
       label: "Encaixe",
       value: pred.sell_fitness != null ? `${fmt(pred.sell_fitness, 0)}/100` : "—",
@@ -7270,14 +7321,14 @@ async function openHunterBotModal(c) {
     form: true,
     rich: true,
     wide: true,
-    confirmLabel: "Criar bot",
-    confirmClass: "btn-primary",
-    confirmIco: ICO.play,
-    cancelLabel: "Fechar",
+    confirmLabel: botsOn() && canCreate ? "Criar bot" : "Fechar",
+    confirmClass: botsOn() && canCreate ? "btn-primary" : "btn-ghost",
+    confirmIco: botsOn() && canCreate ? ICO.play : "",
+    cancelLabel: botsOn() && canCreate ? "Fechar" : "",
     secondaryLabel: "Só gráfico",
     secondaryClass: "btn-ghost",
     secondaryAction: { type: "hunter-chart", inst },
-    action: { type: "bot-create" },
+    action: botsOn() && canCreate ? { type: "bot-create" } : null,
   });
   setBotModalLocked(false);
   syncBotCascadeUI();
@@ -7300,6 +7351,38 @@ function hunterFitnessPlain(fit, label) {
     return "Aceitável, mas não é o ideal — confira estratégia e risco.";
   }
   return "Fraca evidência de vendas boas — melhor revisar ou pular.";
+}
+
+/** Alvo de venda sugerido (preço) se comprar agora no last. */
+function hunterSuggestedTarget(c) {
+  const last = Number(c?.suggested_entry_px ?? c?.last);
+  const bs = c?.best_strategy || {};
+  let pct = Number(c?.suggested_target_pct ?? bs.profit_target_pct);
+  let px = Number(c?.suggested_target_px);
+  const fee = Number(bs.fee_rate_pct ?? 0.1);
+  const spr = Number(c?.spread_pct || 0);
+  if ((!Number.isFinite(px) || px <= 0) && Number.isFinite(last) && last > 0) {
+    if (!Number.isFinite(pct) || pct <= 0) pct = 3;
+    const gross = pct + fee * 2 + spr;
+    px = last * (1 + gross / 100);
+  }
+  if (!Number.isFinite(px) || px <= 0) return null;
+  if (!Number.isFinite(pct) || pct <= 0) {
+    pct = Number.isFinite(last) && last > 0 ? ((px / last) - 1) * 100 : null;
+  }
+  const gross = Number(c?.suggested_target_gross_pct);
+  return {
+    px,
+    pct,
+    last: Number.isFinite(last) && last > 0 ? last : null,
+    gross: Number.isFinite(gross) ? gross : pct,
+    cost: Number(c?.suggested_cost_pct),
+    source: c?.suggested_target_source || null,
+    sourceLabel: c?.suggested_target_source_label || null,
+    atrPct: Number(c?.suggested_atr_pct),
+    bouncePct: Number(c?.suggested_bounce_median_pct),
+    presetPct: Number(c?.suggested_preset_pct),
+  };
 }
 
 function hunterHorizonPlain(id) {
@@ -7393,12 +7476,18 @@ function hunterPredictionHtml(c) {
     ? `<ul class="hunter-pred-why">${reasons.map((r) => `<li>${escHtml(r)}</li>`).join("")}</ul>`
     : "";
 
+  const tgt = hunterSuggestedTarget(c);
+  const tgtHtml = tgt
+    ? `<p class="hunter-pred-target">Se comprar agora perto de <strong>${escHtml(fmtPx(tgt.last))}</strong>, o <strong>alvo sugerido de venda</strong> é <strong>${escHtml(fmtPx(tgt.px))}</strong> (+${escHtml(fmt(tgt.pct, 1))}% líquido${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${escHtml(fmt(tgt.gross, 1))}% bruto p/ cobrir taxa/spread` : ""})${tgt.sourceLabel ? ` · limitado por ${escHtml(tgt.sourceLabel)}` : ""}. Combina ATR + bounce mediano + estilo da estratégia — não é ordem automática.</p>`
+    : "";
+
   return `<div class="hunter-pred">
     <p class="hunter-pred-verdict tone-${tone}">
       <strong>Em resumo:</strong>
       ${escHtml(hz.short)} parece o melhor encaixe agora.
       ${escHtml(hunterFitnessPlain(fit, fitLab))}
     </p>
+    ${tgtHtml}
     <p class="hunter-pred-blurb">${escHtml(hz.blurb)}</p>
     <div class="hunter-pred-points">
       ${bounce ? `<p>${escHtml(bounce)}</p>` : ""}
@@ -7480,18 +7569,11 @@ function renderHunterCandidates(scan) {
     const cache = scan?.cached ? ` · cache ${Math.round(scan.cache_age_s || 0)}s` : "";
     const days = scan?.validate_days ? ` · hist. até ${scan.validate_days}d` : "";
     const hz = " · Dia/Semana/Mês";
-    let capital = "";
-    if (scan?.budget > 0) {
-      capital = ` · ref. ${fmt(scan.budget, 2)} ${scan.budget_ccy || ""}`;
-      if (scan.order_usd) capital += ` (≈ $${fmt(scan.order_usd, 2)})`;
-    } else if (scan?.order_usd) {
-      capital = ` · ref. $${fmt(scan.order_usd, 0)}`;
-    }
     const fun = funnel.pairs != null
       ? ` · ${funnel.pairs} pares → ${funnel.in_drop_band || 0} na queda → ${funnel.in_drop_and_vol || 0} c/ vol → ${list.length} final`
       : "";
     meta.textContent = list.length
-      ? `${list.length} de até 10 · Spot${hz}${fun}${days}${capital}${when ? ` · ${when}` : ""}${cache}`
+      ? `${list.length} de até 30 · Spot${hz}${fun}${days}${when ? ` · ${when}` : ""}${cache}`
       : (scan?.empty_hint || "Nenhuma oportunidade Spot negociável na sua região com os filtros atuais");
     meta.title = "Funil + ranking por aptidão preditiva no horizonte escolhido";
   }
@@ -7542,9 +7624,11 @@ function renderHunterCandidates(scan) {
     const pred = c.prediction || {};
     const fit = pred.sell_fitness != null ? Number(pred.sell_fitness) : null;
     const fitCls = fit == null ? "" : fit >= 62 ? "hunter-ok" : fit < 45 ? "hunter-bad" : "";
+    const cpd = pred.cycles_per_day != null ? Number(pred.cycles_per_day) : null;
     const fitTip = [
-      pred.horizon_label ? `Horizonte: ${pred.horizon_label}` : "",
+      pred.horizon_label ? `Prazo: ${pred.horizon_label}` : "",
       fit != null ? `Aptidão ${fmt(fit, 1)} (${pred.fitness_label || "—"})` : "",
+      cpd != null ? `${fmt(cpd, 2)} ciclos/dia no hist.` : "",
       pred.bounce_prob_pct != null ? `pred. bounce ${fmt(pred.bounce_prob_pct, 0)}%` : "",
       (pred.reasons || []).slice(0, 2).join(" · "),
       pred.prediction_note || "",
@@ -7552,13 +7636,6 @@ function renderHunterCandidates(scan) {
     const fitCell = fit != null
       ? `<span class="${fitCls}" title="${escHtml(fitTip)}">${fmt(fit, 0)}</span>`
       : `<span title="${escHtml(fitTip)}">—</span>`;
-    const cpd = pred.cycles_per_day != null ? Number(pred.cycles_per_day) : null;
-    const cpdTip = cpd != null
-      ? `${fmt(cpd, 3)} ciclos de venda / dia no histórico da melhor estratégia`
-      : "Ciclos de venda por dia (simulação)";
-    const cpdCell = cpd != null
-      ? `<span title="${escHtml(cpdTip)}">${fmt(cpd, 2)}</span>`
-      : `<span title="${escHtml(cpdTip)}">—</span>`;
     const vOk = c.validation_score;
     const vTot = c.validation_total;
     const canCreate = !!bs?.id;
@@ -7572,6 +7649,13 @@ function renderHunterCandidates(scan) {
       ? `Último preço Spot: ${fmtPx(c.last)}${c.bid != null || c.ask != null ? ` · bid ${c.bid != null ? fmtPx(c.bid) : "—"} / ask ${c.ask != null ? fmtPx(c.ask) : "—"}` : ""}`
       : "Último preço Spot";
     const px = c.last != null ? fmtPx(c.last) : "—";
+    const tgt = hunterSuggestedTarget(c);
+    const tgtTip = tgt
+      ? `Alvo sugerido de venda: ${fmtPx(tgt.px)} (+${fmt(tgt.pct, 1)}% líquido vs preço atual${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${fmt(tgt.gross, 1)}% bruto p/ taxa+spread` : ""}${tgt.sourceLabel ? ` · ${tgt.sourceLabel}` : ""}). ATR + bounce + estilo — não é ordem.`
+      : "Sem alvo: falta preço ou estratégia";
+    const tgtCell = tgt
+      ? `<span class="hunter-ok" title="${escHtml(tgtTip)}">${fmtPx(tgt.px)}<small class="hunter-target-pct">+${fmt(tgt.pct, 1)}%</small></span>`
+      : `<span title="${escHtml(tgtTip)}">—</span>`;
     const hzShort = c.best_horizon_short
       || (HUNTER_HORIZONS[c.best_horizon]?.short)
       || "—";
@@ -7584,7 +7668,7 @@ function renderHunterCandidates(scan) {
     const hzTip = hzTipBits.join(" · ") || "Melhor horizonte entre dia / semana / mês";
     const hzCell = `<span class="hunter-hz" title="${escHtml(hzTip)}">${escHtml(hzShort)}</span>`;
     const checksLabel = vTot != null ? `${vOk}/${vTot}` : "—";
-    const botBtnLabel = canCreate ? "Criar bot" : "Ver análise";
+    const botBtnLabel = botsOn() && canCreate ? "Criar bot" : "Ver análise";
     const botBtnTip = canCreate
       ? `Análise + formulário · checks ${checksLabel}`
       : `Ver análise completa · checks ${checksLabel}`;
@@ -7595,18 +7679,18 @@ function renderHunterCandidates(scan) {
           <span>${escHtml(c.base || "—")}${rank}${ageBadge}<small title="Par Spot ${inst}">${inst}</small></span>
         </div>
       </td>
-      <td>${hzCell}</td>
-      <td class="num" title="${escHtml(pxTip)}">${px}</td>
-      <td class="sell" title="${escHtml(dropTip)}">${drop}</td>
-      <td class="num" title="${escHtml(volTip)}">${fmtVol(c.vol)}</td>
-      <td><span class="hunter-liq ${liq}" title="${liqTip}">${liq}</span></td>
-      <td class="num">${fitCell}</td>
-      <td class="num">${cpdCell}</td>
-      <td>${stratCell}</td>
-      <td class="num">${ret}</td>
-      <td>
+      <td class="num hunter-col-drop sell" title="${escHtml(dropTip)}">${drop}</td>
+      <td class="num hunter-col-px" title="${escHtml(pxTip)}">${px}</td>
+      <td class="num hunter-col-target">${tgtCell}</td>
+      <td class="hunter-col-strat">${stratCell}</td>
+      <td class="hunter-col-hz">${hzCell}</td>
+      <td class="num hunter-col-fit">${fitCell}</td>
+      <td class="num hunter-col-ret">${ret}</td>
+      <td class="hunter-col-liq"><span class="hunter-liq ${liq}" title="${liqTip}">${liq}</span></td>
+      <td class="num hunter-col-vol" title="${escHtml(volTip)}">${fmtVol(c.vol)}</td>
+      <td class="hunter-col-act">
         <div class="hunter-row-actions">
-          <button class="btn ${canCreate ? "btn-primary" : "btn-ghost"}" type="button" data-hunter-bot="${inst}" title="${escHtml(botBtnTip)}">${escHtml(botBtnLabel)}${vTot != null ? ` · ${checksLabel}` : ""}</button>
+          <button class="btn ${botsOn() && canCreate ? "btn-primary" : "btn-ghost"}" type="button" data-hunter-bot="${inst}" title="${escHtml(botBtnTip)}">${escHtml(botBtnLabel)}${vTot != null ? ` · ${checksLabel}` : ""}</button>
           <button class="btn btn-ghost" type="button" data-hunter-order="${inst}" data-icon="${escHtml(c.icon || "")}" data-alt="${escHtml(c.icon_alt || "")}" title="Abrir Ordens Spot">Ordem</button>
         </div>
       </td>
@@ -7699,28 +7783,6 @@ function showLoginGate() {
   const gate = $("login-gate");
   if (gate) gate.hidden = false;
   document.body.classList.add("login-locked");
-  // Carregar usuários conhecidos
-  loadKnownUsers();
-}
-
-async function loadKnownUsers() {
-  try {
-    const data = await fetch("/api/auth/known-users").then(r => r.json());
-    const users = data.users || [];
-    const container = $("login-known-users");
-    if (!container || !users.length) return;
-    container.hidden = false;
-    container.innerHTML = `<p class="login-known-title">Contas anteriores</p>` +
-      users.map(u => `
-        <a href="/api/auth/login" class="login-known-item">
-          <img class="login-known-photo" src="${u.picture || '/static/img/logo-192.png'}" alt="" width="32" height="32" />
-          <div class="login-known-info">
-            <span class="login-known-name">${u.name || ''}</span>
-            <span class="login-known-email">${u.email || ''}</span>
-          </div>
-        </a>
-      `).join("");
-  } catch (_) {}
 }
 
 function hideLoginGate() {
@@ -8202,6 +8264,7 @@ async function initNotifications() {
 async function boot() {
   initTheme();
   initNavCollapse();
+  applyBotsEnabled();
   const ok = await initAuth();
   if (!ok) return;
   await initCopilot();

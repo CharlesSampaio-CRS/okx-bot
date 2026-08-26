@@ -1065,6 +1065,7 @@ def cleanup_executions(
 
 
 _BOT_DEFAULTS: dict[str, Any] = {
+    "bots_enabled": False,
     "default_interval_min": 30.0,
     "exec_cleanup_wait_hours": 6.0,
     "exec_cleanup_executed_days": 14.0,
@@ -1080,6 +1081,7 @@ def get_bot_defaults() -> dict[str, Any]:
             continue
         if k in out:
             out[k] = v
+    out["bots_enabled"] = bool(out.get("bots_enabled"))
     out["default_interval_min"] = max(1.0, min(1440.0, float(out.get("default_interval_min") or 30)))
     out["exec_cleanup_wait_hours"] = max(1.0, min(168.0, float(out.get("exec_cleanup_wait_hours") or 6)))
     out["exec_cleanup_executed_days"] = max(1.0, min(90.0, float(out.get("exec_cleanup_executed_days") or 14)))
@@ -1091,6 +1093,7 @@ def save_bot_defaults(patch: dict[str, Any]) -> dict[str, Any]:
     for k in _BOT_DEFAULTS:
         if k in (patch or {}) and patch[k] is not None:
             cur[k] = patch[k]
+    cur["bots_enabled"] = bool(cur.get("bots_enabled"))
     cur["default_interval_min"] = max(1.0, min(1440.0, float(cur["default_interval_min"])))
     cur["exec_cleanup_wait_hours"] = max(1.0, min(168.0, float(cur["exec_cleanup_wait_hours"])))
     cur["exec_cleanup_executed_days"] = max(1.0, min(90.0, float(cur["exec_cleanup_executed_days"])))
@@ -1397,7 +1400,7 @@ _HUNTER_DEFAULTS: dict[str, Any] = {
     "min_vol_usd": 80_000.0,
     "max_spread_pct": 1.0,
     "require_tradeable": True,
-    "top_n": 10,
+    "top_n": 30,
     "strategy_id": "deep_dip",
     "scan_interval_min": 10.0,
     "cooldown_min": 90,
@@ -1420,6 +1423,13 @@ def get_hunter_settings() -> dict[str, Any]:
             continue
         out[k] = v
     out["blacklist"] = [str(x).upper() for x in (out.get("blacklist") or []) if str(x).strip()]
+    try:
+        _n = int(out.get("top_n") or 30)
+    except (TypeError, ValueError):
+        _n = 30
+    if _n == 10:
+        _n = 30
+    out["top_n"] = max(1, min(30, _n))
     # Cache do radar: 30 min (migra default antigo de 3 min)
     ttl = int(out.get("cache_ttl_s") or 1800)
     if ttl <= 180:
@@ -1446,7 +1456,7 @@ def save_hunter_settings(patch: dict[str, Any]) -> dict[str, Any]:
     cur["min_vol_usd"] = max(0.0, float(cur.get("min_vol_usd") or 0))
     cur["max_spread_pct"] = max(0.05, min(5.0, float(cur.get("max_spread_pct") or 0.8)))
     cur["require_tradeable"] = bool(cur.get("require_tradeable"))
-    cur["top_n"] = max(1, min(10, int(cur.get("top_n") or 10)))
+    cur["top_n"] = max(1, min(30, int(cur.get("top_n") or 30)))
     cur["scan_interval_min"] = max(1.0, min(60.0, float(cur.get("scan_interval_min") or 5)))
     cur["cooldown_min"] = max(0, min(24 * 60, int(cur.get("cooldown_min") or 90)))
     cur["cache_ttl_s"] = max(300, min(3600, int(cur.get("cache_ttl_s") or 1800)))

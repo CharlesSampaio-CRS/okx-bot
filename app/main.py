@@ -33,6 +33,12 @@ _EQ_HIST_CACHE_KIND = "equity_history"
 _EQ_HIST_TTL_S = 86400.0  # 1 dia
 
 
+def _okbot_home(request: Request) -> str:
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").lower()
+    if "mex.app.br" in host:
+        return "/okbot/"
+    return "/"
+
 
 def _hist_cache_get(key: str) -> Optional[dict[str, Any]]:
     hit = _HIST_CACHE.get(key)
@@ -88,6 +94,30 @@ class EngineHub:
                     continue
             return True
         return False
+
+    async def stop_all_for_user(self) -> int:
+        uid = current_user_id.get() or ""
+        stopped = 0
+        seen: set[str] = set()
+        for bid, eng in list(self._engines.items()):
+            if not eng.running:
+                continue
+            if uid:
+                owner = db.peek_bot_user(bid)
+                if owner != uid:
+                    continue
+            await eng.stop()
+            stopped += 1
+            seen.add(bid)
+        for row in db.list_bots():
+            bid = str(row.get("bot_id") or "")
+            if not bid or bid in seen:
+                continue
+            eng = self.get(bid)
+            if eng.running:
+                await eng.stop()
+                stopped += 1
+        return stopped
 
     async def start_only(self, bot_id: str) -> None:
         uid = current_user_id.get() or ""
@@ -247,7 +277,7 @@ async def auth_callback(request: Request, code: str = "", state: str = ""):
         raise HTTPException(400, f"Falha no login: {exc}") from exc
     user = auth.upsert_user(userinfo)
     sid = auth.create_session(str(user["user_id"]))
-    resp = RedirectResponse("/", status_code=302)
+    resp = RedirectResponse(_okbot_home(request), status_code=302)
     auth.set_session_cookie(resp, sid)
     resp.delete_cookie(auth.STATE_COOKIE, path="/")
     return resp
@@ -259,22 +289,6 @@ async def auth_me(request: Request) -> dict[str, Any]:
     if auth.enabled() and not user:
         return auth.unauthorized()
     return auth.public_user(user)
-
-
-@app.get("/api/auth/known-users")
-async def auth_known_users() -> dict[str, Any]:
-    """Lista emails que já logaram (para mostrar na tela de login como opções rápidas)."""
-    if not auth.enabled():
-        return {"users": []}
-    from .mongo import col as _col
-    users = []
-    for u in _col("users").find({}, {"_id": 0, "email": 1, "name": 1, "picture": 1}).limit(10):
-        users.append({
-            "email": u.get("email", ""),
-            "name": u.get("name", ""),
-            "picture": u.get("picture", ""),
-        })
-    return {"users": users}
 
 
 @app.put("/api/auth/profile")
@@ -314,7 +328,7 @@ async def update_profile(request: Request) -> dict[str, Any]:
 @app.api_route("/api/auth/logout", methods=["GET", "POST"])
 async def auth_logout(request: Request):
     auth.drop_session(request.cookies.get(auth.COOKIE))
-    resp = RedirectResponse("/", status_code=302)
+    resp = RedirectResponse(_okbot_home(request), status_code=302)
     auth.clear_session_cookie(resp)
     return resp
 
@@ -332,9 +346,13 @@ async def favicon():
 @app.get("/api/status")
 async def status(include: str = "") -> dict[str, Any]:
     """Painel rápido: só cache local. Sem OKX — evita travar o poll da UI."""
+    bots_on = _bots_on()
+    if not bots_on:
+        await hub.stop_all_for_user()
     bots = []
-    for row in db.list_bots():
-        bots.append(await hub.card(row["bot_id"], refresh=False))
+    if bots_on:
+        for row in db.list_bots():
+            bots.append(await hub.card(row["bot_id"], refresh=False))
     bots.sort(key=lambda b: (not bool(b.get("running")), str(b.get("updated_at") or ""), str(b.get("bot_id") or "")))
     port = portfolio.snapshot()
     # Não chama portfolio.refresh_now() aqui — o PortfolioWatcher já atualiza em background.
@@ -359,11 +377,18 @@ async def status(include: str = "") -> dict[str, Any]:
     }
     if "trades" in {p.strip() for p in include.split(",") if p.strip()}:
         data["trades"] = [t.model_dump() for t in db.list_trades(80)]
+    data["bots_enabled"] = bots_on
+    if not bots_on:
+        data["running"] = False
+        data["bots"] = []
     return data
 
 
 @app.get("/api/bots")
 async def list_bots() -> dict[str, Any]:
+    if not _bots_on():
+        await hub.stop_all_for_user()
+        return {"bots": []}
     bots = [await hub.card(row["bot_id"]) for row in db.list_bots()]
     bots.sort(key=lambda b: (not bool(b.get("running")), str(b.get("updated_at") or ""), str(b.get("bot_id") or "")))
     return {"bots": bots}
@@ -371,6 +396,7 @@ async def list_bots() -> dict[str, Any]:
 
 @app.post("/api/bots")
 async def create_bot(body: BotCreate) -> dict[str, Any]:
+    _require_bots()
     _ensure_cascade_ok(body.model_dump())
     _ensure_bot_quote_ok(body.model_dump())
     await _ensure_inst_ok(body.inst_id)
@@ -591,6 +617,7 @@ async def delete_okx_account(account_id: str) -> dict[str, Any]:
 
 @app.post("/api/bots/{bot_id}/start")
 async def start_engine(bot_id: str) -> dict[str, Any]:
+    _require_bots()
     if not credentials.configured():
         raise HTTPException(400, "cadastre API Key, Secret e Passphrase em Configurações")
     try:
@@ -886,6 +913,7 @@ async def stop_engine(bot_id: str) -> dict[str, Any]:
 @app.post("/api/bots/{bot_id}/tick")
 async def tick_engine(bot_id: str) -> dict[str, Any]:
     """Executa um ciclo agora (manual). Pode comprar/vender se as regras fecharem."""
+    _require_bots()
     if not credentials.configured():
         raise HTTPException(400, "cadastre API Key, Secret e Passphrase em Configurações")
     try:
@@ -1117,10 +1145,14 @@ async def get_bot_defaults_api() -> dict[str, Any]:
 @app.put("/api/settings/bot-defaults")
 async def put_bot_defaults(body: BotDefaultsUpdate) -> dict[str, Any]:
     saved = db.save_bot_defaults(body.model_dump(exclude_none=True))
-    db.add_event(
-        f"padrão bots: intervalo {saved['default_interval_min']:g} min · "
-        f"limpeza waits {saved['exec_cleanup_wait_hours']:g}h"
-    )
+    if not saved.get("bots_enabled"):
+        n = await hub.stop_all_for_user()
+        db.add_event(f"bots desativados · {n} parado(s)")
+    else:
+        db.add_event(
+            f"bots ativados · intervalo {saved['default_interval_min']:g} min · "
+            f"limpeza waits {saved['exec_cleanup_wait_hours']:g}h"
+        )
     return saved
 
 
@@ -1374,6 +1406,15 @@ async def portfolio_history(
 def _require_keys() -> None:
     if not credentials.configured():
         raise HTTPException(400, "cadastre as API Keys primeiro")
+
+
+def _bots_on() -> bool:
+    return bool(db.get_bot_defaults().get("bots_enabled"))
+
+
+def _require_bots() -> None:
+    if not _bots_on():
+        raise HTTPException(403, "bots desativados em Configurações")
 
 
 async def _ensure_inst_ok(inst_id: str) -> None:

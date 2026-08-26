@@ -190,6 +190,71 @@ def rentability_check(
     }
 
 
+def suggested_levels(
+    last: float | None,
+    *,
+    profit_target_pct: float | None,
+    fee_rate_pct: float = 0.10,
+    spread_pct_val: float | None = None,
+    horizon: str | None = None,
+    features: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Preço de venda sugerido se comprar agora no last.
+
+    Líquido = min(estilo da estratégia, mediana do bounce, k×ATR diário),
+    com piso de folha. O preço bruto soma taxa ida+volta + spread.
+    Sem candles, cai no preset (comportamento antigo).
+    """
+    last_f = _f(last)
+    if last_f is None or last_f <= 0:
+        return {}
+    preset_pct = float(profit_target_pct or 0)
+    if preset_pct <= 0:
+        preset_pct = 3.0
+    fee = max(0.0, float(fee_rate_pct or 0))
+    spr = max(0.0, float(spread_pct_val or 0))
+    cost_pct = fee * 2.0 + spr
+    hz = normalize_horizon(horizon) if horizon else None
+    hz_preset = HORIZONS[hz] if hz else HORIZONS["weekly"]
+    k = float(hz_preset.get("atr_k") or 2.0)
+    feat = features if isinstance(features, dict) and features.get("ok") else {}
+
+    bounce_pct = _f(feat.get("bounce_median_pct")) if feat else None
+    atr_daily = _f(feat.get("atr_daily_pct")) if feat else None
+    atr_cap = (k * atr_daily) if atr_daily is not None and atr_daily > 0 else None
+
+    caps: list[tuple[str, float, str]] = [
+        ("preset", preset_pct, "estilo da estratégia"),
+    ]
+    if bounce_pct is not None and bounce_pct > 0:
+        caps.append(("bounce", bounce_pct, "mediana do bounce após dips"))
+    if atr_cap is not None:
+        caps.append(("atr", atr_cap, f"teto ATR ({k:g}× ATR diário)"))
+
+    source, net_pct, source_label = min(caps, key=lambda x: x[1])
+    if net_pct < TARGET_NET_FLOOR_PCT:
+        net_pct = TARGET_NET_FLOOR_PCT
+        source = "floor"
+        source_label = f"piso mínimo ({TARGET_NET_FLOOR_PCT:g}%)"
+
+    gross_pct = net_pct + cost_pct
+    target_px = last_f * (1.0 + gross_pct / 100.0)
+    return {
+        "suggested_entry_px": round(last_f, 10),
+        "suggested_target_pct": round(net_pct, 3),
+        "suggested_target_gross_pct": round(gross_pct, 3),
+        "suggested_target_px": round(target_px, 10),
+        "suggested_cost_pct": round(cost_pct, 3),
+        "suggested_preset_pct": round(preset_pct, 3),
+        "suggested_atr_pct": round(atr_daily, 3) if atr_daily is not None else None,
+        "suggested_atr_cap_pct": round(atr_cap, 3) if atr_cap is not None else None,
+        "suggested_atr_k": round(k, 3),
+        "suggested_bounce_median_pct": round(bounce_pct, 3) if bounce_pct is not None else None,
+        "suggested_target_source": source,
+        "suggested_target_source_label": source_label,
+    }
+
+
 def score_candidate(
     *,
     chg24: float | None,
@@ -443,6 +508,12 @@ def scan_dips(
                 "age_days": scored.get("age_days"),
                 "is_new": scored.get("is_new"),
                 "vol_min_effective": scored.get("vol_min_effective"),
+                **suggested_levels(
+                    p.get("last"),
+                    profit_target_pct=profit_target_pct,
+                    fee_rate_pct=fee_rate_pct,
+                    spread_pct_val=scored.get("spread_pct"),
+                ),
             }
         )
     out.sort(
@@ -469,6 +540,9 @@ HORIZONS: dict[str, dict[str, Any]] = {
         "cycles_weight": 1.45,
         "return_weight": 0.75,
         "near_low_bars": 24,  # ~1d em 1H
+        "atr_k": 1.0,
+        "bounce_hours": 24.0,
+        "bounce_min_drop_pct": 0.8,
     },
     "weekly": {
         "label": "Semanal",
@@ -481,6 +555,9 @@ HORIZONS: dict[str, dict[str, Any]] = {
         "cycles_weight": 1.0,
         "return_weight": 1.0,
         "near_low_bars": 48,
+        "atr_k": 2.0,
+        "bounce_hours": 72.0,
+        "bounce_min_drop_pct": 1.2,
     },
     "monthly": {
         "label": "Mensal (swing)",
@@ -493,8 +570,14 @@ HORIZONS: dict[str, dict[str, Any]] = {
         "cycles_weight": 0.65,
         "return_weight": 1.35,
         "near_low_bars": 60,
+        "atr_k": 3.0,
+        "bounce_hours": 168.0,
+        "bounce_min_drop_pct": 1.5,
     },
 }
+
+# Lucro líquido mínimo (além de taxa+spread) para o alvo não ser ruído.
+TARGET_NET_FLOOR_PCT = 0.15
 
 
 def normalize_horizon(raw: Any) -> str:
@@ -504,6 +587,9 @@ def normalize_horizon(raw: Any) -> str:
 
 def horizon_preset(horizon: str) -> dict[str, Any]:
     return dict(HORIZONS[normalize_horizon(horizon)])
+
+
+horizon_preset = horizon_preset
 
 
 def apply_horizon_to_settings(cfg: dict[str, Any], *, override_filters: bool = False) -> dict[str, Any]:
@@ -527,6 +613,79 @@ def _std(xs: list[float]) -> float:
         return 0.0
     mean = sum(xs) / n
     return (sum((x - mean) ** 2 for x in xs) / (n - 1)) ** 0.5
+
+
+def _median(xs: list[float]) -> float | None:
+    if not xs:
+        return None
+    ys = sorted(xs)
+    n = len(ys)
+    mid = n // 2
+    if n % 2:
+        return ys[mid]
+    return (ys[mid - 1] + ys[mid]) / 2.0
+
+
+def _bar_hours(rows: list[dict[str, Any]]) -> float:
+    if len(rows) < 2:
+        return 4.0
+    t0 = int(rows[-2].get("ts") or 0)
+    t1 = int(rows[-1].get("ts") or 0)
+    hours = (t1 - t0) / 3_600_000.0
+    if hours <= 0:
+        return 4.0
+    return max(0.25, min(hours, 48.0))
+
+
+def _atr_wilder(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float | None:
+    """ATR de Wilder em unidades de preço."""
+    n = min(len(highs), len(lows), len(closes))
+    if n < period + 1:
+        return None
+    trs: list[float] = []
+    for i in range(n):
+        h = highs[i]
+        l = lows[i]
+        if i == 0:
+            trs.append(max(h - l, 0.0))
+            continue
+        prev = closes[i - 1]
+        trs.append(max(h - l, abs(h - prev), abs(l - prev)))
+    atr = sum(trs[1 : period + 1]) / period
+    for tr in trs[period + 1 :]:
+        atr = (atr * (period - 1) + tr) / period
+    return atr
+
+
+def _median_bounce_pct(
+    closes: list[float],
+    highs: list[float],
+    *,
+    min_drop_pct: float,
+    ahead: int,
+    min_samples: int = 3,
+) -> tuple[float | None, int]:
+    """Mediana do rali (máxima) nas N barras seguintes a um dip de barra."""
+    n = len(closes)
+    if ahead < 1 or n < ahead + 5:
+        return None, 0
+    xs: list[float] = []
+    for i in range(1, n - ahead):
+        if closes[i - 1] <= 0 or closes[i] <= 0:
+            continue
+        drop = (closes[i] / closes[i - 1] - 1.0) * 100.0
+        if drop > -min_drop_pct:
+            continue
+        window = highs[i + 1 : i + 1 + ahead]
+        if not window:
+            continue
+        bounce = (max(window) / closes[i] - 1.0) * 100.0
+        if bounce > 0:
+            xs.append(bounce)
+    med = _median(xs)
+    if med is None or len(xs) < min_samples:
+        return None, len(xs)
+    return med, len(xs)
 
 
 def _sma(values: list[float], period: int) -> float | None:
@@ -728,6 +887,18 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
         else:
             rsi_score = 0.1
 
+    bar_h = _bar_hours(rows)
+    atr_px = _atr_wilder(highs, lows, closes, 14)
+    atr_pct = (atr_px / last * 100.0) if atr_px and last > 0 else None
+    atr_daily_pct = (atr_pct * (24.0 / bar_h) ** 0.5) if atr_pct is not None else None
+    ahead = max(3, int(round(float(preset.get("bounce_hours") or 72.0) / bar_h)))
+    bounce_median_pct, bounce_median_n = _median_bounce_pct(
+        closes,
+        highs,
+        min_drop_pct=float(preset.get("bounce_min_drop_pct") or 1.2),
+        ahead=ahead,
+    )
+
     return {
         "ok": True,
         "bars": len(rows),
@@ -756,7 +927,16 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
         "vol_trend_score": round(vol_trend_score, 3),
         "support_level": round(support_level, 6) if support_level else None,
         "higher_lows": higher_lows,
+        "atr_pct": round(atr_pct, 3) if atr_pct is not None else None,
+        "atr_daily_pct": round(atr_daily_pct, 3) if atr_daily_pct is not None else None,
+        "bounce_median_pct": round(bounce_median_pct, 3) if bounce_median_pct is not None else None,
+        "bounce_median_sample": bounce_median_n,
+        "bar_hours": round(bar_h, 2),
     }
+
+
+analyze_candles = analyze_candles
+analyze_candles = analyze_candles
 
 
 def _sigmoid(x: float) -> float:

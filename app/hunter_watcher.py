@@ -333,6 +333,29 @@ class HunterWatcher:
                         out["prob_up_pct"] = out["prediction"].get("bounce_prob_pct")
                         out["sell_fitness"] = out["prediction"].get("sell_fitness")
                         out["cycles_per_day"] = out["prediction"].get("cycles_per_day")
+                    bs = out.get("best_strategy") or {}
+                    out.update(
+                        hunter_scan.suggested_levels(
+                            out.get("last"),
+                            profit_target_pct=bs.get("profit_target_pct"),
+                            fee_rate_pct=float(bs.get("fee_rate_pct") or 0.10),
+                            spread_pct_val=out.get("spread_pct"),
+                            horizon=out.get("best_horizon"),
+                            features=out.get("candle_features"),
+                        )
+                    )
+                    net = out.get("suggested_target_pct")
+                    if net is not None:
+                        rent = hunter_scan.rentability_check(
+                            profit_target_pct=float(net),
+                            fee_rate_pct=float(bs.get("fee_rate_pct") or 0.10),
+                            spread_pct_val=out.get("spread_pct"),
+                            order_usd=order_usd,
+                            vol_24h=float(out.get("vol") or 0),
+                            book_usd=out.get("book_usd"),
+                        )
+                        out["rentability"] = rent
+                        out["tradeable"] = bool(rent.get("tradeable"))
                     out["checks"] = _validation_checks(
                         out,
                         order_usd=order_usd,
@@ -352,6 +375,14 @@ class HunterWatcher:
                     )
                     out["validation_score"] = sum(1 for ch in out["checks"] if ch.get("ok"))
                     out["validation_total"] = len(out["checks"])
+                    out.update(
+                        hunter_scan.suggested_levels(
+                            out.get("last"),
+                            profit_target_pct=None,
+                            fee_rate_pct=0.10,
+                            spread_pct_val=out.get("spread_pct"),
+                        )
+                    )
                 return out
 
         return list(await asyncio.gather(*[one(c) for c in candidates]))
@@ -393,11 +424,11 @@ class HunterWatcher:
         min_vol = float(cfg.get("min_vol_usd") or band["min_vol_usd"])
         max_spread = float(cfg.get("max_spread_pct") or band["max_spread_pct"])
         require_tradeable = bool(cfg.get("require_tradeable"))
-        top_n = max(1, min(10, int(cfg.get("top_n") or 10)))
+        top_n = max(1, min(30, int(cfg.get("top_n") or 30)))
         validate_days = 90  # multi-horizonte: candles cobrem até mensal
 
         cache_key = (
-            f"hunter_scan_v9|all|{cfg.get('quote')}|{min_drop}|{max_drop}|"
+            f"hunter_scan_v10|all|{cfg.get('quote')}|{min_drop}|{max_drop}|"
             f"{min_vol}|{max_spread}|{order_usd:.2f}|{require_tradeable}|{top_n}|{budget}|{budget_ccy}"
         )
         if not force:
@@ -444,11 +475,11 @@ class HunterWatcher:
             order_usd=order_usd,
             blacklist=list(cfg.get("blacklist") or []),
             exclude_inst=exclude,
-            top_n=min(30, top_n + 10),
+            top_n=min(50, top_n + 10),
             require_tradeable=False,
         )
 
-        enrich_n = min(len(pre), 25)
+        enrich_n = min(len(pre), top_n)
         books: dict[str, float] = {}
         if enrich_n:
             results = await asyncio.gather(

@@ -223,6 +223,7 @@ class OrderLimitsUpdate(BaseModel):
 
 
 class BotDefaultsUpdate(BaseModel):
+    bots_enabled: Optional[bool] = None
     default_interval_min: Optional[float] = Field(default=None, ge=1, le=1440)
     exec_cleanup_wait_hours: Optional[float] = Field(default=None, ge=1, le=168)
     exec_cleanup_executed_days: Optional[float] = Field(default=None, ge=1, le=90)
@@ -239,7 +240,7 @@ class HunterSettingsUpdate(BaseModel):
     min_vol_usd: Optional[float] = Field(default=None, ge=0)
     max_spread_pct: Optional[float] = Field(default=None, ge=0.05, le=5)
     require_tradeable: Optional[bool] = None
-    top_n: Optional[int] = Field(default=None, ge=1, le=10)
+    top_n: Optional[int] = Field(default=None, ge=1, le=30)
     strategy_id: Optional[str] = Field(default=None, max_length=40)
     scan_interval_min: Optional[float] = Field(default=None, ge=1, le=60)
     cooldown_min: Optional[int] = Field(default=None, ge=0, le=24 * 60)
