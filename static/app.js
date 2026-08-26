@@ -159,6 +159,8 @@ let usdtBrlRate = null;
 let lastPnlData = null;
 let pollTimer = null;
 let walletPollTimer = null;
+let hunterPollTimer = null;
+const HUNTER_AUTO_KEY = "okx_hunter_auto";
 let refreshInFlight = false;
 let lastTradesFetch = 0;
 let pollRunningMode = null;
@@ -728,7 +730,12 @@ function showPage(id) {
     renderStratControls();
     ensureStratReady();
   }
-  if (id === "hunter") loadHunter();
+  if (id === "hunter") {
+    loadHunter();
+    startHunterPolling();
+  } else {
+    stopHunterPolling();
+  }
   if (id === "profile") loadProfile();
   if (id === "docs") {
     initDocsPage();
@@ -3362,11 +3369,51 @@ function startWalletPolling() {
   }, walletPollMs());
 }
 
+function hunterAutoOn() {
+  const el = $("hunter-auto-toggle");
+  if (el) return !!el.checked;
+  try {
+    return localStorage.getItem(HUNTER_AUTO_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function hunterPollMs() {
+  const min = Number(lastHunter?.settings?.scan_interval_min || 10);
+  const n = Number.isFinite(min) && min >= 1 ? min : 10;
+  return Math.round(n * 60 * 1000);
+}
+
+function stopHunterPolling() {
+  if (hunterPollTimer) clearTimeout(hunterPollTimer);
+  hunterPollTimer = null;
+}
+
+function startHunterPolling() {
+  stopHunterPolling();
+  if (document.hidden) return;
+  if (pageId() !== "hunter") return;
+  if (!hunterAutoOn()) return;
+  hunterPollTimer = setTimeout(async () => {
+    try {
+      if (pageId() === "hunter" && !document.hidden) {
+        const scan = await api("/api/hunter/scan?refresh=1");
+        renderHunterCandidates(scan);
+        if (lastHunter) renderHunterStatus({ ...lastHunter, last_scan: scan });
+      }
+    } catch (_) { /* ignore */ }
+    startHunterPolling();
+  }, hunterPollMs());
+}
+
 function startPolling() {
   if (pollTimer) clearTimeout(pollTimer);
   pollTimer = null;
   scheduleNextPoll();
   startWalletPolling();
+  if (pageId() === "hunter") startHunterPolling();
+  else stopHunterPolling();
 }
 
 async function refresh(opts = {}) {
@@ -7440,7 +7487,7 @@ function renderHunterStatus(data) {
   el.className = `hunter-status ${tone}`;
   el.innerHTML = `<div class="hs-title">${escHtml(title)}</div>
     <div class="hs-step">${escHtml(step)}</div>
-    <div class="hs-meta">Modo radar (sem automação)</div>`;
+    <div class="hs-meta">Radar só nesta tela · auto-scan não roda em segundo plano</div>`;
 
   const modePill = $("hunter-mode-pill");
   if (modePill) {
@@ -7940,12 +7987,15 @@ async function loadHunter({ forceScan = false, preserveToggle = false } = {}) {
     if (!preserveToggle && !loadHunter._toggled) {
       const toggle = $("hunter-auto-toggle");
       const label = $("hunter-auto-label");
+      let on = false;
+      try { on = localStorage.getItem(HUNTER_AUTO_KEY) === "1"; } catch (_) {}
       if (toggle) {
-        toggle.checked = !!data.settings?.enabled;
-        if (label) label.textContent = data.settings?.enabled ? "Auto-scan ligado" : "Auto-scan desligado";
+        toggle.checked = on;
+        if (label) label.textContent = on ? "Auto-scan nesta tela" : "Auto-scan desligado";
       }
       loadHunter._toggled = true;
     }
+    startHunterPolling();
     if (forceScan || !data.last_scan?.candidates?.length) {
       const scan = await api(`/api/hunter/scan${forceScan ? "?refresh=1" : ""}`);
       renderHunterCandidates(scan);
@@ -7976,22 +8026,19 @@ $("btn-hunter-scan")?.addEventListener("click", () => {
 $("hunter-auto-toggle")?.addEventListener("change", async (ev) => {
   const enabled = ev.target.checked;
   const label = $("hunter-auto-label");
+  try { localStorage.setItem(HUNTER_AUTO_KEY, enabled ? "1" : "0"); } catch (_) {}
+  if (label) label.textContent = enabled ? "Auto-scan nesta tela" : "Auto-scan desligado";
+  if (!enabled) {
+    stopHunterPolling();
+    return;
+  }
+  startHunterPolling();
   try {
-    if (enabled) {
-      await api("/api/hunter/start", { method: "POST" });
-      if (label) label.textContent = "Auto-scan ligado";
-      // Executar scan imediato ao ativar
-      try {
-        const scan = await api("/api/hunter/scan?refresh=1");
-        renderHunterCandidates(scan);
-      } catch (_) {}
-    } else {
-      await api("/api/hunter/stop", { method: "POST" });
-      if (label) label.textContent = "Auto-scan desligado";
-    }
+    const scan = await api("/api/hunter/scan?refresh=1");
+    renderHunterCandidates(scan);
+    if (lastHunter) renderHunterStatus({ ...lastHunter, last_scan: scan });
   } catch (err) {
-    ev.target.checked = !enabled;
-    flash("hunter-msg", err?.message || "Erro ao alterar auto-scan", false);
+    flash("hunter-msg", err?.message || "Erro ao escanear", false);
   }
 });
 
@@ -8511,6 +8558,7 @@ async function boot() {
       pollTimer = null;
       if (walletPollTimer) clearTimeout(walletPollTimer);
       walletPollTimer = null;
+      stopHunterPolling();
       return;
     }
     refresh();
