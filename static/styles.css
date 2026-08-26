@@ -1115,11 +1115,12 @@ html.theme-dark .lab-token-results {
   border-radius: 10px;
   line-height: 1.2;
   text-align: left;
-  max-width: 140px;
+  max-width: 168px;
 }
 .wallet-open-ord-side {
   text-transform: uppercase;
 }
+.wallet-open-ord-px,
 .wallet-open-ord-val {
   font-size: 10px;
   font-weight: 600;
@@ -1129,7 +1130,7 @@ html.theme-dark .lab-token-results {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 124px;
+  max-width: 152px;
 }
 .wallet-open-ord.buy {
   background: #ecfdf5;

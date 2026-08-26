@@ -4306,6 +4306,20 @@ function formatQuoteMap(map) {
   return entries.map(([ccy, v]) => moneyQuote(v, ccy)).join(" · ");
 }
 
+function walletOrderPriceSummary(orders) {
+  const list = (orders || []).map((o) => {
+    if (String(o.ord_type || "").toLowerCase() === "market") return "mercado";
+    const px = Number(o.px || o.avg_px);
+    return Number.isFinite(px) && px > 0 ? fmt(px, 6) : "";
+  }).filter(Boolean);
+  if (!list.length) return "";
+  const uniq = [...new Set(list)];
+  if (uniq.length === 1) return uniq[0];
+  const nums = uniq.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+  if (nums.length >= 2) return `${fmt(Math.min(...nums), 6)}–${fmt(Math.max(...nums), 6)}`;
+  return uniq.slice(0, 2).join(" · ");
+}
+
 function walletOpenOrderBadge(ccy, asset, marks) {
   const key = String(ccy || "").toUpperCase();
   const rec = marks[key];
@@ -4315,14 +4329,12 @@ function walletOpenOrderBadge(ccy, asset, marks) {
     else if (rec.sell && !rec.buy) cls = "sell";
     const sideLab = rec.buy && !rec.sell ? "Compra" : rec.sell && !rec.buy ? "Venda" : `${rec.n} ordens`;
     const valTxt = formatQuoteMap(rec.valueByQuote);
-    const label = rec.n === 1
-      ? (valTxt ? `${sideLab} · ${valTxt}` : sideLab)
-      : (valTxt ? `${rec.n} ordens · ${valTxt}` : `${rec.n} ordens`);
+    const pxTxt = walletOrderPriceSummary(rec.orders);
     const bits = [];
     if (rec.buy) bits.push(rec.buy === 1 ? "1 compra" : `${rec.buy} compras`);
     if (rec.sell) bits.push(rec.sell === 1 ? "1 venda" : `${rec.sell} vendas`);
-    const tip = `Ordem aberta: ${bits.join(" · ")}${valTxt ? ` · ${valTxt}` : ""}${rec.insts.length ? ` · ${rec.insts.join(", ")}` : ""}. Toque para ver o preview.`;
-    return `<button type="button" class="wallet-open-ord ${cls}" data-wallet-order="${escHtml(key)}" title="${escHtml(tip)}"><span class="wallet-open-ord-side">${escHtml(sideLab)}</span>${valTxt ? `<span class="wallet-open-ord-val">${escHtml(valTxt)}</span>` : ""}</button>`;
+    const tip = `Ordem aberta: ${bits.join(" · ")}${pxTxt ? ` · preço ${pxTxt}` : ""}${valTxt ? ` · ${valTxt}` : ""}${rec.insts.length ? ` · ${rec.insts.join(", ")}` : ""}. Toque para ver o preview.`;
+    return `<button type="button" class="wallet-open-ord ${cls}" data-wallet-order="${escHtml(key)}" title="${escHtml(tip)}"><span class="wallet-open-ord-side">${escHtml(sideLab)}</span>${pxTxt ? `<span class="wallet-open-ord-px">preço ${escHtml(pxTxt)}</span>` : ""}${valTxt ? `<span class="wallet-open-ord-val">${escHtml(valTxt)}</span>` : ""}</button>`;
   }
   if (walletOrdersOk) return "";
   const frozen = (Number(asset?.total_bal) || 0) - (Number(asset?.avail) || 0);
