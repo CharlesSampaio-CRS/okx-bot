@@ -3410,7 +3410,7 @@ const DOCS_GLOSSARY = [
   { term: "Taxa / Fee", aliases: ["fee", "taker", "maker", "taxa okx"], def: "Cobrança da exchange por trade. Taker costuma ser a taxa de ordem a mercado. Entra no custo do ciclo." },
   { term: "Queda %", aliases: ["buy_pct", "buy pct", "gatilho de compra"], def: "Quanto o preço precisa cair vs a referência para o bot comprar." },
   { term: "Lucro alvo %", aliases: ["profit_target", "alvo", "take profit"], def: "Quanto de lucro (após custos) o bot espera antes de vender." },
-  { term: "Alvo sugerido", aliases: ["preço alvo", "target price", "venda sugerida", "take profit preço"], def: "No Caçador: preço de venda se você comprar agora no last. Combina estilo da estratégia, mediana do bounce após dips parecidos e teto k×ATR diário (padrão de mercado), mais taxa ida+volta + spread. Não dispara ordem." },
+  { term: "Alvo sugerido", aliases: ["preço alvo", "target price", "venda sugerida", "take profit preço"], def: "No Caçador: preço de venda se você comprar agora no last. Pega o maior entre o % da estratégia, o p60 do bounce após dips no tamanho da queda e ~40% da queda 24h; o ATR só corta se passar do teto k×ATR. Mais taxa ida+volta + spread. Não dispara ordem." },
   { term: "Ativar bots", aliases: ["desativar bots", "bots off", "esconder bots"], def: "Interruptor em Configurações. Desligado: para todos os bots, some o menu Bot/Lab/Estratégias e não deixa criar/iniciar. Carteira e ordens manuais seguem." },
   { term: "Referência", aliases: ["ref_price", "preço de referência", "trailing"], def: "Preço-base usado para medir a queda. Pode acompanhar máximas enquanto o bot está flat (trailing)." },
   { term: "Flat", aliases: ["sem posição", "fora do mercado"], def: "Estado sem token comprado pelo bot — só esperando o gatilho de compra." },
@@ -7536,7 +7536,7 @@ function hunterPredictionHtml(c) {
 
   const tgt = hunterSuggestedTarget(c);
   const tgtHtml = tgt
-    ? `<p class="hunter-pred-target">Se comprar agora perto de <strong>${escHtml(fmtPx(tgt.last))}</strong>, o <strong>alvo sugerido de venda</strong> é <strong>${escHtml(fmtPx(tgt.px))}</strong> (+${escHtml(fmt(tgt.pct, 1))}% líquido${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${escHtml(fmt(tgt.gross, 1))}% bruto p/ cobrir taxa/spread` : ""})${tgt.sourceLabel ? ` · limitado por ${escHtml(tgt.sourceLabel)}` : ""}. Combina ATR + bounce mediano + estilo da estratégia — não é ordem automática.</p>`
+    ? `<p class="hunter-pred-target">Se comprar agora perto de <strong>${escHtml(fmtPx(tgt.last))}</strong>, o <strong>alvo sugerido de venda</strong> é <strong>${escHtml(fmtPx(tgt.px))}</strong> (+${escHtml(fmt(tgt.pct, 1))}% líquido${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${escHtml(fmt(tgt.gross, 1))}% bruto p/ cobrir taxa/spread` : ""})${tgt.sourceLabel ? ` · ${escHtml(tgt.sourceLabel)}` : ""}. Usa o maior entre estratégia, bounce (p60) e 40% da queda 24h; ATR só como teto — não é ordem automática.</p>`
     : "";
 
   return `<div class="hunter-pred">

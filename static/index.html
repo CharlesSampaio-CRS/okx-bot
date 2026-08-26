@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=okx-wallet-ord1" />
+  <link rel="stylesheet" href="/static/styles.css?v=okx-hunter-tgt2" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -1215,7 +1215,7 @@
                 <li>Viabilidade vs taxa + alvo (edge).</li>
                 <li><strong>Só listar viáveis</strong> — esconde pares em que taxa + spread comem o alvo ou a ordem não cabe no livro. Se a lista vier vazia, o radar ainda mostra os dips que passaram queda/volume/spread.</li>
                 <li>Backtest rápido da melhor estratégia em Dia/Semana/Mês.</li>
-                <li><strong>Alvo sugerido</strong> — preço de venda se você comprar agora no last. Combina o % da estratégia com a mediana do bounce após dips parecidos e um teto k×ATR diário (1× dia, 2× semana, 3× mês), mais taxa ida+volta + spread. É estimativa, não ordem.</li>
+                <li><strong>Alvo sugerido</strong> — preço de venda se você comprar agora no last. Pega o maior entre o % da estratégia, o bounce típico (p60) depois de dips no tamanho da queda e ~40% da queda 24h. O ATR só corta se o alvo passar de k×ATR diário (1,5× dia, 2,5× semana, 3,5× mês). Mais taxa ida+volta + spread. É estimativa, não ordem.</li>
                 <li>Nota de encaixe + texto em português no modal unificado de criar bot.</li>
               </ul>
               <h3 class="docs-h3">O que os números querem dizer</h3>
@@ -1618,6 +1618,6 @@
     </div>
   </div>
   <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-  <script src="/static/app.js?v=okx-wallet-ord1"></script>
+  <script src="/static/app.js?v=okx-hunter-tgt2"></script>
 </body>
 </html>

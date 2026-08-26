@@ -198,12 +198,13 @@ def suggested_levels(
     spread_pct_val: float | None = None,
     horizon: str | None = None,
     features: dict[str, Any] | None = None,
+    drop_pct: float | None = None,
 ) -> dict[str, Any]:
     """Preço de venda sugerido se comprar agora no last.
 
-    Líquido = min(estilo da estratégia, mediana do bounce, k×ATR diário),
-    com piso de folha. O preço bruto soma taxa ida+volta + spread.
-    Sem candles, cai no preset (comportamento antigo).
+    Mira o mais ambicioso entre estilo, bounce (p60 de dips parecidos) e
+    ~40% da queda 24h. O ATR diário só corta o que passa do teto k×ATR.
+    Sem candles, usa preset e a fração da queda.
     """
     last_f = _f(last)
     if last_f is None or last_f <= 0:
@@ -216,22 +217,30 @@ def suggested_levels(
     cost_pct = fee * 2.0 + spr
     hz = normalize_horizon(horizon) if horizon else None
     hz_preset = HORIZONS[hz] if hz else HORIZONS["weekly"]
-    k = float(hz_preset.get("atr_k") or 2.0)
+    k = float(hz_preset.get("atr_k") or 2.5)
     feat = features if isinstance(features, dict) and features.get("ok") else {}
 
-    bounce_pct = _f(feat.get("bounce_median_pct")) if feat else None
+    bounce_pct = None
+    if feat:
+        bounce_pct = _f(feat.get("bounce_p60_pct")) or _f(feat.get("bounce_median_pct"))
     atr_daily = _f(feat.get("atr_daily_pct")) if feat else None
     atr_cap = (k * atr_daily) if atr_daily is not None and atr_daily > 0 else None
+    drop_f = _f(drop_pct)
+    reclaim_pct = (RECLAIM_DROP_FRAC * drop_f) if drop_f is not None and drop_f > 0 else None
 
-    caps: list[tuple[str, float, str]] = [
+    aims: list[tuple[str, float, str]] = [
         ("preset", preset_pct, "estilo da estratégia"),
     ]
     if bounce_pct is not None and bounce_pct > 0:
-        caps.append(("bounce", bounce_pct, "mediana do bounce após dips"))
-    if atr_cap is not None:
-        caps.append(("atr", atr_cap, f"teto ATR ({k:g}× ATR diário)"))
+        aims.append(("bounce", bounce_pct, "p60 do bounce em dips parecidos"))
+    if reclaim_pct is not None and reclaim_pct > 0:
+        aims.append(("reclaim", reclaim_pct, f"{RECLAIM_DROP_FRAC * 100:.0f}% da queda 24h"))
 
-    source, net_pct, source_label = min(caps, key=lambda x: x[1])
+    source, net_pct, source_label = max(aims, key=lambda x: x[1])
+    if atr_cap is not None and net_pct > atr_cap:
+        net_pct = atr_cap
+        source = "atr"
+        source_label = f"teto ATR ({k:g}× ATR diário)"
     if net_pct < TARGET_NET_FLOOR_PCT:
         net_pct = TARGET_NET_FLOOR_PCT
         source = "floor"
@@ -250,6 +259,7 @@ def suggested_levels(
         "suggested_atr_cap_pct": round(atr_cap, 3) if atr_cap is not None else None,
         "suggested_atr_k": round(k, 3),
         "suggested_bounce_median_pct": round(bounce_pct, 3) if bounce_pct is not None else None,
+        "suggested_reclaim_pct": round(reclaim_pct, 3) if reclaim_pct is not None else None,
         "suggested_target_source": source,
         "suggested_target_source_label": source_label,
     }
@@ -513,6 +523,7 @@ def scan_dips(
                     profit_target_pct=profit_target_pct,
                     fee_rate_pct=fee_rate_pct,
                     spread_pct_val=scored.get("spread_pct"),
+                    drop_pct=drop,
                 ),
             }
         )
@@ -540,9 +551,9 @@ HORIZONS: dict[str, dict[str, Any]] = {
         "cycles_weight": 1.45,
         "return_weight": 0.75,
         "near_low_bars": 24,  # ~1d em 1H
-        "atr_k": 1.0,
+        "atr_k": 1.5,
         "bounce_hours": 24.0,
-        "bounce_min_drop_pct": 0.8,
+        "bounce_min_drop_pct": 1.5,
     },
     "weekly": {
         "label": "Semanal",
@@ -555,9 +566,9 @@ HORIZONS: dict[str, dict[str, Any]] = {
         "cycles_weight": 1.0,
         "return_weight": 1.0,
         "near_low_bars": 48,
-        "atr_k": 2.0,
+        "atr_k": 2.5,
         "bounce_hours": 72.0,
-        "bounce_min_drop_pct": 1.2,
+        "bounce_min_drop_pct": 3.0,
     },
     "monthly": {
         "label": "Mensal (swing)",
@@ -570,14 +581,16 @@ HORIZONS: dict[str, dict[str, Any]] = {
         "cycles_weight": 0.65,
         "return_weight": 1.35,
         "near_low_bars": 60,
-        "atr_k": 3.0,
+        "atr_k": 3.5,
         "bounce_hours": 168.0,
-        "bounce_min_drop_pct": 1.5,
+        "bounce_min_drop_pct": 5.0,
     },
 }
 
 # Lucro líquido mínimo (além de taxa+spread) para o alvo não ser ruído.
-TARGET_NET_FLOOR_PCT = 0.15
+TARGET_NET_FLOOR_PCT = 0.60
+# Fração da queda 24h a recuperar (mean-reversion típica).
+RECLAIM_DROP_FRAC = 0.40
 
 
 def normalize_horizon(raw: Any) -> str:
@@ -626,6 +639,22 @@ def _median(xs: list[float]) -> float | None:
     return (ys[mid - 1] + ys[mid]) / 2.0
 
 
+def _percentile(xs: list[float], p: float) -> float | None:
+    if not xs:
+        return None
+    ys = sorted(xs)
+    n = len(ys)
+    if n == 1:
+        return ys[0]
+    p = min(1.0, max(0.0, float(p)))
+    k = (n - 1) * p
+    i = int(k)
+    frac = k - i
+    if i + 1 >= n:
+        return ys[-1]
+    return ys[i] * (1.0 - frac) + ys[i + 1] * frac
+
+
 def _bar_hours(rows: list[dict[str, Any]]) -> float:
     if len(rows) < 2:
         return 4.0
@@ -657,23 +686,25 @@ def _atr_wilder(highs: list[float], lows: list[float], closes: list[float], peri
     return atr
 
 
-def _median_bounce_pct(
+def _bounce_moves(
     closes: list[float],
     highs: list[float],
     *,
     min_drop_pct: float,
     ahead: int,
-    min_samples: int = 3,
-) -> tuple[float | None, int]:
-    """Mediana do rali (máxima) nas N barras seguintes a um dip de barra."""
+    lookback: int = 1,
+) -> list[float]:
+    """Ralis % após uma queda de lookback barras ≥ min_drop_pct."""
     n = len(closes)
-    if ahead < 1 or n < ahead + 5:
-        return None, 0
+    lb = max(1, int(lookback))
+    if ahead < 1 or n < ahead + lb + 2:
+        return []
     xs: list[float] = []
-    for i in range(1, n - ahead):
-        if closes[i - 1] <= 0 or closes[i] <= 0:
+    for i in range(lb, n - ahead):
+        prev = closes[i - lb]
+        if prev <= 0 or closes[i] <= 0:
             continue
-        drop = (closes[i] / closes[i - 1] - 1.0) * 100.0
+        drop = (closes[i] / prev - 1.0) * 100.0
         if drop > -min_drop_pct:
             continue
         window = highs[i + 1 : i + 1 + ahead]
@@ -682,10 +713,26 @@ def _median_bounce_pct(
         bounce = (max(window) / closes[i] - 1.0) * 100.0
         if bounce > 0:
             xs.append(bounce)
-    med = _median(xs)
-    if med is None or len(xs) < min_samples:
-        return None, len(xs)
-    return med, len(xs)
+    return xs
+
+
+def _median_bounce_pct(
+    closes: list[float],
+    highs: list[float],
+    *,
+    min_drop_pct: float,
+    ahead: int,
+    min_samples: int = 3,
+    lookback: int = 1,
+) -> tuple[float | None, float | None, int]:
+    """p50 e p60 do rali após dips (lookback=1 barra, ou ~24h se lookback>1)."""
+    xs = _bounce_moves(
+        closes, highs, min_drop_pct=min_drop_pct, ahead=ahead, lookback=lookback
+    )
+    n = len(xs)
+    if n < min_samples:
+        return None, None, n
+    return _percentile(xs, 0.50), _percentile(xs, 0.60), n
 
 
 def _sma(values: list[float], period: int) -> float | None:
@@ -892,12 +939,23 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
     atr_pct = (atr_px / last * 100.0) if atr_px and last > 0 else None
     atr_daily_pct = (atr_pct * (24.0 / bar_h) ** 0.5) if atr_pct is not None else None
     ahead = max(3, int(round(float(preset.get("bounce_hours") or 72.0) / bar_h)))
-    bounce_median_pct, bounce_median_n = _median_bounce_pct(
+    lookback_24h = max(1, int(round(24.0 / bar_h)))
+    min_dip = float(preset.get("bounce_min_drop_pct") or preset.get("min_drop_pct") or 3.0)
+    bounce_median_pct, bounce_p60_pct, bounce_median_n = _median_bounce_pct(
         closes,
         highs,
-        min_drop_pct=float(preset.get("bounce_min_drop_pct") or 1.2),
+        min_drop_pct=min_dip,
         ahead=ahead,
+        lookback=lookback_24h,
     )
+    if bounce_median_pct is None:
+        bounce_median_pct, bounce_p60_pct, bounce_median_n = _median_bounce_pct(
+            closes,
+            highs,
+            min_drop_pct=min_dip,
+            ahead=ahead,
+            lookback=1,
+        )
 
     return {
         "ok": True,
@@ -930,6 +988,7 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
         "atr_pct": round(atr_pct, 3) if atr_pct is not None else None,
         "atr_daily_pct": round(atr_daily_pct, 3) if atr_daily_pct is not None else None,
         "bounce_median_pct": round(bounce_median_pct, 3) if bounce_median_pct is not None else None,
+        "bounce_p60_pct": round(bounce_p60_pct, 3) if bounce_p60_pct is not None else None,
         "bounce_median_sample": bounce_median_n,
         "bar_hours": round(bar_h, 2),
     }

@@ -342,6 +342,7 @@ class HunterWatcher:
                             spread_pct_val=out.get("spread_pct"),
                             horizon=out.get("best_horizon"),
                             features=out.get("candle_features"),
+                            drop_pct=out.get("drop_pct"),
                         )
                     )
                     net = out.get("suggested_target_pct")
@@ -381,6 +382,7 @@ class HunterWatcher:
                             profit_target_pct=None,
                             fee_rate_pct=0.10,
                             spread_pct_val=out.get("spread_pct"),
+                            drop_pct=out.get("drop_pct"),
                         )
                     )
                 return out
