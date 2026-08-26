@@ -3489,7 +3489,8 @@ const DOCS_GLOSSARY = [
   { term: "Taxa / Fee", aliases: ["fee", "taker", "maker", "taxa okx"], def: "Cobrança da exchange por trade. Taker costuma ser a taxa de ordem a mercado. Entra no custo do ciclo." },
   { term: "Queda %", aliases: ["buy_pct", "buy pct", "gatilho de compra"], def: "Quanto o preço precisa cair vs a referência para o bot comprar." },
   { term: "Lucro alvo %", aliases: ["profit_target", "alvo", "take profit"], def: "Quanto de lucro (após custos) o bot espera antes de vender." },
-  { term: "Alvo sugerido", aliases: ["preço alvo", "target price", "venda sugerida", "take profit preço", "preço alvo"], def: "No Caçador: preço de venda se você comprar agora no last. Pega o maior entre o % da estratégia, o p60 do bounce após dips no tamanho da queda e ~40% da queda 24h; o ATR só corta se passar do teto k×ATR. Mais taxa ida+volta + spread. Não dispara ordem." },
+  { term: "Alvo conservador", aliases: ["alvo sugerido", "preço alvo", "target price", "venda sugerida", "take profit preço", "alvo baixo"], def: "No Caçador: preço de venda mais conservador se você comprar agora. Maior entre o % da estratégia, o p60 do bounce e ~40% da queda 24h; o ATR pode cortar se passar de k×ATR. Mais taxa ida+volta + spread. É o valor que preenche o formulário do bot. Não dispara ordem." },
+  { term: "Alvo ambicioso", aliases: ["alvo amplo", "alvo agressivo", "fibonacci 618", "62% da queda", "alvo alto"], def: "No Caçador: preço de venda mais alto. Mira ~62% da queda 24h (Fibonacci 61,8%). O ATR não corta abaixo dessa recuperação. Mais difícil de bater que o conservador. Não dispara ordem." },
   { term: "Var. média", aliases: ["média de variação", "oscilação média", "avg var", "variação 24h"], def: "No Caçador: média do módulo da variação em janelas de 24h no histórico do scan. Serve para comparar se o preço alvo é compatível com o que o token costuma andar." },
   { term: "Período de negociação", aliases: ["prazo", "horizonte", "dia semana mês"], def: "No Caçador: Dia, Semana ou Mês — o horizonte com melhor aptidão a completar o ciclo compra→venda." },
   { term: "Ativar bots", aliases: ["desativar bots", "bots off", "esconder bots"], def: "Interruptor em Configurações. Desligado: para todos os bots, some o menu Bot/Lab/Estratégias e não deixa criar/iniciar. Carteira e ordens manuais seguem." },
@@ -3527,7 +3528,7 @@ const DOCS_GLOSSARY = [
   { term: "Copiloto", aliases: ["assistente", "chat", "llm", "ia", "linguagem natural", "chatgpt", "openai", "cursor", "plano", "giro", "troca", "pnl", "compensar"], def: "Balão no topo: converse sobre a carteira e o PnL. Ele analisa seus números, propõe caminhos (giro, corte, dip) e pergunta o que faltar. Não devolve lista de comandos. Cada passo abre o modal. Sem confirmação, nada vai à OKX." },
 ];
 
-const DOCS_CHIPS = ["copiloto", "dip", "spread", "liquidez", "frágil", "cascata", "PnL", "login", "intervalo", "pump", "conta"];
+const DOCS_CHIPS = ["copiloto", "dip", "spread", "liquidez", "frágil", "cascata", "PnL", "login", "intervalo", "pump", "conta", "alvo"];
 
 let docsReady = false;
 
@@ -7554,12 +7555,18 @@ async function openHunterBotModal(c) {
     : `<p class="hint">Sem estratégia automática — ajuste queda/alvo no formulário abaixo.</p>`;
 
   const tgt = hunterSuggestedTarget(c);
+  const tgtWide = hunterSuggestedTarget(c, "wide");
   const kpis = [
     { label: "Queda 24h", value: c.drop_pct != null ? fmtPct(-Math.abs(c.drop_pct)) : "—", tone: "sell" },
     {
-      label: "Alvo sugerido",
+      label: "Alvo conservador",
       value: tgt ? `${fmtPx(tgt.px)}  (+${fmt(tgt.pct, 1)}%)` : "—",
       tone: tgt ? "buy" : undefined,
+    },
+    {
+      label: "Alvo ambicioso",
+      value: tgtWide ? `${fmtPx(tgtWide.px)}  (+${fmt(tgtWide.pct, 1)}%)` : "—",
+      tone: tgtWide ? "buy" : undefined,
     },
     {
       label: "Encaixe",
@@ -7620,16 +7627,25 @@ function hunterFitnessPlain(fit, label) {
   return "Fraca evidência de vendas boas — melhor revisar ou pular.";
 }
 
-/** Alvo de venda sugerido (preço) se comprar agora no last. */
-function hunterSuggestedTarget(c) {
+/** Alvo de venda sugerido (preço) se comprar agora no last.
+ * kind: "conservative" (padrão) | "wide" (ambicioso). */
+function hunterSuggestedTarget(c, kind) {
+  const wide = kind === "wide" || kind === "ambitious";
   const last = Number(c?.suggested_entry_px ?? c?.last);
   const bs = c?.best_strategy || {};
-  let pct = Number(c?.suggested_target_pct ?? bs.profit_target_pct);
-  let px = Number(c?.suggested_target_px);
+  let pct = Number(
+    wide
+      ? c?.suggested_wide_target_pct
+      : (c?.suggested_target_pct ?? bs.profit_target_pct)
+  );
+  let px = Number(wide ? c?.suggested_wide_target_px : c?.suggested_target_px);
   const fee = Number(bs.fee_rate_pct ?? 0.1);
   const spr = Number(c?.spread_pct || 0);
   if ((!Number.isFinite(px) || px <= 0) && Number.isFinite(last) && last > 0) {
-    if (!Number.isFinite(pct) || pct <= 0) pct = 3;
+    if (!Number.isFinite(pct) || pct <= 0) {
+      if (wide) return null;
+      pct = 3;
+    }
     const gross = pct + fee * 2 + spr;
     px = last * (1 + gross / 100);
   }
@@ -7637,19 +7653,31 @@ function hunterSuggestedTarget(c) {
   if (!Number.isFinite(pct) || pct <= 0) {
     pct = Number.isFinite(last) && last > 0 ? ((px / last) - 1) * 100 : null;
   }
-  const gross = Number(c?.suggested_target_gross_pct);
+  const gross = Number(wide ? c?.suggested_wide_target_gross_pct : c?.suggested_target_gross_pct);
   return {
     px,
     pct,
     last: Number.isFinite(last) && last > 0 ? last : null,
     gross: Number.isFinite(gross) ? gross : pct,
     cost: Number(c?.suggested_cost_pct),
-    source: c?.suggested_target_source || null,
-    sourceLabel: c?.suggested_target_source_label || null,
+    source: (wide ? c?.suggested_wide_target_source : c?.suggested_target_source) || null,
+    sourceLabel: (wide ? c?.suggested_wide_target_source_label : c?.suggested_target_source_label) || null,
     atrPct: Number(c?.suggested_atr_pct),
     bouncePct: Number(c?.suggested_bounce_median_pct),
     presetPct: Number(c?.suggested_preset_pct),
+    wide,
   };
+}
+
+function hunterTargetCellHtml(tgt, { avgVarOk, avgVar, label }) {
+  const kind = tgt?.wide ? "Alvo ambicioso" : "Alvo conservador";
+  const name = label || kind;
+  if (!tgt) {
+    return `<span title="${escHtml(`${name}: sem preço ou estratégia`)}">—</span>`;
+  }
+  const tip = `${name}: ${fmtPx(tgt.px)} (+${fmt(tgt.pct, 1)}% líquido vs preço atual${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${fmt(tgt.gross, 1)}% bruto p/ taxa+spread` : ""}${tgt.sourceLabel ? ` · ${tgt.sourceLabel}` : ""}${avgVarOk ? ` · var. média 24h ±${fmt(avgVar, 1)}%` : ""}). Não é ordem.`;
+  const cls = tgt.wide ? "hunter-target-wide" : "hunter-ok";
+  return `<span class="${cls}" title="${escHtml(tip)}">${fmtPx(tgt.px)}<small class="hunter-target-pct">+${fmt(tgt.pct, 1)}%</small></span>`;
 }
 
 function hunterHorizonPlain(id) {
@@ -7744,8 +7772,20 @@ function hunterPredictionHtml(c) {
     : "";
 
   const tgt = hunterSuggestedTarget(c);
-  const tgtHtml = tgt
-    ? `<p class="hunter-pred-target">Se comprar agora perto de <strong>${escHtml(fmtPx(tgt.last))}</strong>, o <strong>alvo sugerido de venda</strong> é <strong>${escHtml(fmtPx(tgt.px))}</strong> (+${escHtml(fmt(tgt.pct, 1))}% líquido${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${escHtml(fmt(tgt.gross, 1))}% bruto p/ cobrir taxa/spread` : ""})${tgt.sourceLabel ? ` · ${escHtml(tgt.sourceLabel)}` : ""}. Usa o maior entre estratégia, bounce (p60) e 40% da queda 24h; ATR só como teto — não é ordem automática.</p>`
+  const tgtWide = hunterSuggestedTarget(c, "wide");
+  const tgtBits = [];
+  if (tgt) {
+    tgtBits.push(
+      `conservador <strong>${escHtml(fmtPx(tgt.px))}</strong> (+${escHtml(fmt(tgt.pct, 1))}%${tgt.sourceLabel ? ` · ${escHtml(tgt.sourceLabel)}` : ""})`
+    );
+  }
+  if (tgtWide) {
+    tgtBits.push(
+      `ambicioso <strong>${escHtml(fmtPx(tgtWide.px))}</strong> (+${escHtml(fmt(tgtWide.pct, 1))}%${tgtWide.sourceLabel ? ` · ${escHtml(tgtWide.sourceLabel)}` : ""})`
+    );
+  }
+  const tgtHtml = tgtBits.length
+    ? `<p class="hunter-pred-target">Se comprar agora perto de <strong>${escHtml(fmtPx(tgt?.last ?? tgtWide?.last))}</strong>: ${tgtBits.join(" · ")}. Conservador = 40% da queda (ATR pode cortar). Ambicioso = ~62% da queda (ATR não corta abaixo). O bot nasce com o conservador. Não é ordem automática.</p>`
     : "";
 
   return `<div class="hunter-pred">
@@ -7849,7 +7889,7 @@ function renderHunterCandidates(scan) {
     const funBit = funnel.pairs != null
       ? ` · funil: ${funnel.pairs} pares → ${funnel.in_drop_band || 0} na queda → ${funnel.in_drop_and_vol || 0} com vol`
       : "";
-    body.innerHTML = `<tr><td class="empty" colspan="12">${hint}${escHtml(funBit)}</td></tr>`;
+    body.innerHTML = `<tr><td class="empty" colspan="13">${hint}${escHtml(funBit)}</td></tr>`;
     return;
   }
   body.innerHTML = list.map((c, i) => {
@@ -7922,18 +7962,15 @@ function renderHunterCandidates(scan) {
     const avgVarN = c.avg_var_sample ?? feat.avg_var_sample;
     const avgVarOk = Number.isFinite(avgVar) && avgVar > 0;
     const tgt = hunterSuggestedTarget(c);
+    const tgtWide = hunterSuggestedTarget(c, "wide");
     const avgVarTip = avgVarOk
       ? `Média |variação| 24h no hist.: ${fmt(avgVar, 2)}%${Number.isFinite(avgVarMed) ? ` · mediana ${fmt(avgVarMed, 2)}%` : ""}${avgVarN ? ` · ${avgVarN} janelas` : ""}${c.atr_daily_pct != null || feat.atr_daily_pct != null ? ` · ATR diário ${fmt(Number(c.atr_daily_pct ?? feat.atr_daily_pct), 2)}%` : ""}`
       : "Sem histórico suficiente para média de variação 24h";
     const avgVarCell = avgVarOk
       ? `<span title="${escHtml(avgVarTip)}">±${fmt(avgVar, 1)}%</span>`
       : `<span title="${escHtml(avgVarTip)}">—</span>`;
-    const tgtTip = tgt
-      ? `Preço alvo de venda: ${fmtPx(tgt.px)} (+${fmt(tgt.pct, 1)}% líquido vs preço atual${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${fmt(tgt.gross, 1)}% bruto p/ taxa+spread` : ""}${tgt.sourceLabel ? ` · ${tgt.sourceLabel}` : ""}${avgVarOk ? ` · var. média 24h ±${fmt(avgVar, 1)}%` : ""}). Não é ordem.`
-      : "Sem preço alvo: falta preço ou estratégia";
-    const tgtCell = tgt
-      ? `<span class="hunter-ok" title="${escHtml(tgtTip)}">${fmtPx(tgt.px)}<small class="hunter-target-pct">+${fmt(tgt.pct, 1)}%</small></span>`
-      : `<span title="${escHtml(tgtTip)}">—</span>`;
+    const tgtCell = hunterTargetCellHtml(tgt, { avgVarOk, avgVar, label: "Alvo conservador" });
+    const tgtWideCell = hunterTargetCellHtml(tgtWide, { avgVarOk, avgVar, label: "Alvo ambicioso" });
     const hzShort = c.best_horizon_short
       || (HUNTER_HORIZONS[c.best_horizon]?.short)
       || "—";
@@ -7961,6 +7998,7 @@ function renderHunterCandidates(scan) {
       <td class="num hunter-col-px" title="${escHtml(pxTip)}">${px}</td>
       <td class="num hunter-col-var">${avgVarCell}</td>
       <td class="num hunter-col-target">${tgtCell}</td>
+      <td class="num hunter-col-target hunter-col-target-wide">${tgtWideCell}</td>
       <td class="hunter-col-strat">${stratCell}</td>
       <td class="hunter-col-hz">${hzCell}</td>
       <td class="num hunter-col-fit">${fitCell}</td>

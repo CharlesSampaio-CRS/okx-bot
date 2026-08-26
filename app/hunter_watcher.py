@@ -329,7 +329,7 @@ class HunterWatcher:
                         out["cycles_per_day"] = out["prediction"].get("cycles_per_day")
                     bs = out.get("best_strategy") or {}
                     out.update(
-                        hunter_scan.suggested_levels(
+                        hunter_scan.suggested_levels_pair(
                             out.get("last"),
                             profit_target_pct=bs.get("profit_target_pct"),
                             fee_rate_pct=float(bs.get("fee_rate_pct") or 0.10),
@@ -371,7 +371,7 @@ class HunterWatcher:
                     out["validation_score"] = sum(1 for ch in out["checks"] if ch.get("ok"))
                     out["validation_total"] = len(out["checks"])
                     out.update(
-                        hunter_scan.suggested_levels(
+                        hunter_scan.suggested_levels_pair(
                             out.get("last"),
                             profit_target_pct=None,
                             fee_rate_pct=0.10,

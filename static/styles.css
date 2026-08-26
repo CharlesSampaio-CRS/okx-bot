@@ -3126,6 +3126,9 @@ td.muted { color: var(--muted); }
 .hunter-col-target { white-space: nowrap; }
 .hunter-col-px { font-variant-numeric: tabular-nums; }
 .hunter-col-var { font-variant-numeric: tabular-nums; color: var(--muted); }
+.hunter-target-wide .hunter-target-pct {
+  color: var(--accent);
+}
 @media (max-width: 960px) {
   .hunter-col-ret,
   .hunter-col-vol { display: none; }

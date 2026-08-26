@@ -190,6 +190,15 @@ def rentability_check(
     }
 
 
+def _is_wide_target_style(style: str | None) -> bool:
+    return str(style or "").strip().lower() in {
+        "ambitious",
+        "wide",
+        "ambicioso",
+        "agressivo",
+    }
+
+
 def suggested_levels(
     last: float | None,
     *,
@@ -199,16 +208,20 @@ def suggested_levels(
     horizon: str | None = None,
     features: dict[str, Any] | None = None,
     drop_pct: float | None = None,
+    style: str = "conservative",
 ) -> dict[str, Any]:
     """Preço de venda sugerido se comprar agora no last.
 
-    Mira o mais ambicioso entre estilo, bounce (p60 de dips parecidos) e
-    ~40% da queda 24h. O ATR diário só corta o que passa do teto k×ATR.
-    Sem candles, usa preset e a fração da queda.
+    Conservador: maior entre estilo, bounce p60 e ~40% da queda 24h;
+    ATR diário corta o que passa de k×ATR.
+    Ambicioso: ~62% da queda (Fibonacci 61,8%); o ATR não corta abaixo dessa
+    recuperação. Sem candles, usa preset e a fração da queda.
     """
     last_f = _f(last)
     if last_f is None or last_f <= 0:
         return {}
+    wide = _is_wide_target_style(style)
+    reclaim_frac = RECLAIM_DROP_FRAC_WIDE if wide else RECLAIM_DROP_FRAC
     preset_pct = float(profit_target_pct or 0)
     if preset_pct <= 0:
         preset_pct = 3.0
@@ -226,7 +239,8 @@ def suggested_levels(
     atr_daily = _f(feat.get("atr_daily_pct")) if feat else None
     atr_cap = (k * atr_daily) if atr_daily is not None and atr_daily > 0 else None
     drop_f = _f(drop_pct)
-    reclaim_pct = (RECLAIM_DROP_FRAC * drop_f) if drop_f is not None and drop_f > 0 else None
+    reclaim_pct = (reclaim_frac * drop_f) if drop_f is not None and drop_f > 0 else None
+    reclaim_label = f"{reclaim_frac * 100:.0f}% da queda 24h"
 
     aims: list[tuple[str, float, str]] = [
         ("preset", preset_pct, "estilo da estratégia"),
@@ -234,13 +248,17 @@ def suggested_levels(
     if bounce_pct is not None and bounce_pct > 0:
         aims.append(("bounce", bounce_pct, "p60 do bounce em dips parecidos"))
     if reclaim_pct is not None and reclaim_pct > 0:
-        aims.append(("reclaim", reclaim_pct, f"{RECLAIM_DROP_FRAC * 100:.0f}% da queda 24h"))
+        aims.append(("reclaim", reclaim_pct, reclaim_label))
 
     source, net_pct, source_label = max(aims, key=lambda x: x[1])
     if atr_cap is not None and net_pct > atr_cap:
         net_pct = atr_cap
         source = "atr"
         source_label = f"teto ATR ({k:g}× ATR diário)"
+    if wide and reclaim_pct is not None and reclaim_pct > 0 and net_pct < reclaim_pct:
+        net_pct = reclaim_pct
+        source = "reclaim"
+        source_label = f"{reclaim_label} (ATR não corta abaixo)"
     if net_pct < TARGET_NET_FLOOR_PCT:
         net_pct = TARGET_NET_FLOOR_PCT
         source = "floor"
@@ -262,7 +280,33 @@ def suggested_levels(
         "suggested_reclaim_pct": round(reclaim_pct, 3) if reclaim_pct is not None else None,
         "suggested_target_source": source,
         "suggested_target_source_label": source_label,
+        "suggested_target_style": "ambitious" if wide else "conservative",
     }
+
+
+def suggested_levels_pair(
+    last: float | None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Conservador (chaves atuais) + ambicioso (`suggested_wide_*`)."""
+    kwargs.pop("style", None)
+    cons = suggested_levels(last, style="conservative", **kwargs)
+    if not cons:
+        return {}
+    wide = suggested_levels(last, style="ambitious", **kwargs)
+    out = dict(cons)
+    remap = (
+        ("suggested_target_pct", "suggested_wide_target_pct"),
+        ("suggested_target_gross_pct", "suggested_wide_target_gross_pct"),
+        ("suggested_target_px", "suggested_wide_target_px"),
+        ("suggested_target_source", "suggested_wide_target_source"),
+        ("suggested_target_source_label", "suggested_wide_target_source_label"),
+        ("suggested_reclaim_pct", "suggested_wide_reclaim_pct"),
+    )
+    for src, dst in remap:
+        if src in wide:
+            out[dst] = wide[src]
+    return out
 
 
 def score_candidate(
@@ -518,7 +562,7 @@ def scan_dips(
                 "age_days": scored.get("age_days"),
                 "is_new": scored.get("is_new"),
                 "vol_min_effective": scored.get("vol_min_effective"),
-                **suggested_levels(
+                **suggested_levels_pair(
                     p.get("last"),
                     profit_target_pct=profit_target_pct,
                     fee_rate_pct=fee_rate_pct,
@@ -589,8 +633,10 @@ HORIZONS: dict[str, dict[str, Any]] = {
 
 # Lucro líquido mínimo (além de taxa+spread) para o alvo não ser ruído.
 TARGET_NET_FLOOR_PCT = 0.60
-# Fração da queda 24h a recuperar (mean-reversion típica).
+# Fração da queda 24h a recuperar (mean-reversion típica / conservador).
 RECLAIM_DROP_FRAC = 0.40
+# Alvo ambicioso: retração Fibonacci 61,8% da queda 24h.
+RECLAIM_DROP_FRAC_WIDE = 0.618
 
 
 def normalize_horizon(raw: Any) -> str:

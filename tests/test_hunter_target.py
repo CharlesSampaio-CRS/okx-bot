@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from app.hunter import analyze_candles, suggested_levels
+from app.hunter import analyze_candles, suggested_levels, suggested_levels_pair
 
 
 def _bars(*, n: int = 40, close: float = 100.0, rng: float = 2.0, step_ms: int = 4 * 3_600_000):
@@ -89,6 +89,45 @@ class HunterTargetTest(unittest.TestCase):
         )
         self.assertEqual(out["suggested_target_source"], "floor")
         self.assertAlmostEqual(out["suggested_target_pct"], 0.60)
+
+    def test_wide_reclaim_is_618_of_drop(self):
+        out = suggested_levels(
+            1.0,
+            profit_target_pct=0.70,
+            fee_rate_pct=0.10,
+            spread_pct_val=0.20,
+            drop_pct=8.0,
+            style="ambitious",
+        )
+        self.assertEqual(out["suggested_target_source"], "reclaim")
+        self.assertAlmostEqual(out["suggested_target_pct"], 4.944)
+        self.assertAlmostEqual(out["suggested_reclaim_pct"], 4.944)
+
+    def test_wide_atr_cannot_cut_below_reclaim(self):
+        out = suggested_levels(
+            1.0,
+            profit_target_pct=8.0,
+            fee_rate_pct=0.10,
+            spread_pct_val=0.10,
+            drop_pct=8.0,
+            horizon="daily",
+            style="ambitious",
+            features={"ok": True, "atr_daily_pct": 0.4},
+        )
+        self.assertEqual(out["suggested_target_source"], "reclaim")
+        self.assertAlmostEqual(out["suggested_target_pct"], 4.944)
+
+    def test_pair_exposes_both_columns(self):
+        out = suggested_levels_pair(
+            1.0,
+            profit_target_pct=0.70,
+            fee_rate_pct=0.10,
+            spread_pct_val=0.20,
+            drop_pct=8.0,
+        )
+        self.assertAlmostEqual(out["suggested_target_pct"], 3.2)
+        self.assertAlmostEqual(out["suggested_wide_target_pct"], 4.944)
+        self.assertGreater(out["suggested_wide_target_px"], out["suggested_target_px"])
 
     def test_avg_var_pct_on_known_moves(self):
         ts = 1_700_000_000_000
