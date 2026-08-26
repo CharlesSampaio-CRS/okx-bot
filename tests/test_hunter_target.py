@@ -90,6 +90,19 @@ class HunterTargetTest(unittest.TestCase):
         self.assertEqual(out["suggested_target_source"], "floor")
         self.assertAlmostEqual(out["suggested_target_pct"], 0.60)
 
+    def test_avg_var_pct_on_known_moves(self):
+        ts = 1_700_000_000_000
+        step = 4 * 3_600_000
+        rows = []
+        for i in range(18):
+            px = 100.0 if i < 6 else (102.0 if i < 12 else 100.0)
+            rows.append({"ts": ts + i * step, "o": px, "h": px, "l": px, "c": px})
+        feat = analyze_candles(rows, horizon="weekly")
+        self.assertTrue(feat.get("ok"))
+        self.assertIsNotNone(feat.get("avg_var_pct"))
+        self.assertGreater(feat["avg_var_pct"], 1.0)
+        self.assertLess(feat["avg_var_pct"], 3.0)
+
 
 if __name__ == "__main__":
     unittest.main()

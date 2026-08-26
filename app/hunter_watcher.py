@@ -326,6 +326,13 @@ class HunterWatcher:
                     out["best_horizon_label"] = bundle["best_horizon_label"]
                     out["prediction"] = bundle["prediction"]
                     out["candle_features"] = bundle["candle_features"]
+                    feat = bundle.get("candle_features") or {}
+                    if feat.get("avg_var_pct") is not None:
+                        out["avg_var_pct"] = feat.get("avg_var_pct")
+                        out["avg_var_median_pct"] = feat.get("avg_var_median_pct")
+                        out["avg_var_sample"] = feat.get("avg_var_sample")
+                    if feat.get("atr_daily_pct") is not None:
+                        out["atr_daily_pct"] = feat.get("atr_daily_pct")
                     out["best_strategy"] = bundle["best_strategy"]
                     out["best_strategy_id"] = (bundle.get("best_strategy") or {}).get("id")
                     out["strategies_top"] = tops_by_hz.get(bundle["best_horizon"]) or []

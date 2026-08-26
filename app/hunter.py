@@ -639,6 +639,27 @@ def _median(xs: list[float]) -> float | None:
     return (ys[mid - 1] + ys[mid]) / 2.0
 
 
+def _mean(xs: list[float]) -> float | None:
+    if not xs:
+        return None
+    return sum(xs) / len(xs)
+
+
+def _avg_abs_move_pct(closes: list[float], lookback: int) -> tuple[float | None, float | None, int]:
+    """Média e mediana do |variação| em janelas de `lookback` barras (ex.: ~24h)."""
+    lb = max(1, int(lookback))
+    xs: list[float] = []
+    for i in range(lb, len(closes)):
+        prev = closes[i - lb]
+        if prev <= 0:
+            continue
+        xs.append(abs(closes[i] / prev - 1.0) * 100.0)
+    n = len(xs)
+    if n < 3:
+        return None, None, n
+    return _mean(xs), _median(xs), n
+
+
 def _percentile(xs: list[float], p: float) -> float | None:
     if not xs:
         return None
@@ -935,11 +956,12 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
             rsi_score = 0.1
 
     bar_h = _bar_hours(rows)
+    lookback_24h = max(1, int(round(24.0 / bar_h)))
+    avg_var_pct, avg_var_median_pct, avg_var_n = _avg_abs_move_pct(closes, lookback_24h)
     atr_px = _atr_wilder(highs, lows, closes, 14)
     atr_pct = (atr_px / last * 100.0) if atr_px and last > 0 else None
     atr_daily_pct = (atr_pct * (24.0 / bar_h) ** 0.5) if atr_pct is not None else None
     ahead = max(3, int(round(float(preset.get("bounce_hours") or 72.0) / bar_h)))
-    lookback_24h = max(1, int(round(24.0 / bar_h)))
     min_dip = float(preset.get("bounce_min_drop_pct") or preset.get("min_drop_pct") or 3.0)
     bounce_median_pct, bounce_p60_pct, bounce_median_n = _median_bounce_pct(
         closes,
@@ -987,6 +1009,9 @@ def analyze_candles(candles: list[dict[str, Any]], *, horizon: str = "weekly") -
         "higher_lows": higher_lows,
         "atr_pct": round(atr_pct, 3) if atr_pct is not None else None,
         "atr_daily_pct": round(atr_daily_pct, 3) if atr_daily_pct is not None else None,
+        "avg_var_pct": round(avg_var_pct, 3) if avg_var_pct is not None else None,
+        "avg_var_median_pct": round(avg_var_median_pct, 3) if avg_var_median_pct is not None else None,
+        "avg_var_sample": avg_var_n,
         "bounce_median_pct": round(bounce_median_pct, 3) if bounce_median_pct is not None else None,
         "bounce_p60_pct": round(bounce_p60_pct, 3) if bounce_p60_pct is not None else None,
         "bounce_median_sample": bounce_median_n,

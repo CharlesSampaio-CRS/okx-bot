@@ -3106,6 +3106,7 @@ td.muted { color: var(--muted); }
 .hunter-table td:last-child { text-align: right; }
 .hunter-col-target { white-space: nowrap; }
 .hunter-col-px { font-variant-numeric: tabular-nums; }
+.hunter-col-var { font-variant-numeric: tabular-nums; color: var(--muted); }
 @media (max-width: 960px) {
   .hunter-col-ret,
   .hunter-col-vol { display: none; }

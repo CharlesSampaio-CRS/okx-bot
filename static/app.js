@@ -3410,7 +3410,9 @@ const DOCS_GLOSSARY = [
   { term: "Taxa / Fee", aliases: ["fee", "taker", "maker", "taxa okx"], def: "Cobrança da exchange por trade. Taker costuma ser a taxa de ordem a mercado. Entra no custo do ciclo." },
   { term: "Queda %", aliases: ["buy_pct", "buy pct", "gatilho de compra"], def: "Quanto o preço precisa cair vs a referência para o bot comprar." },
   { term: "Lucro alvo %", aliases: ["profit_target", "alvo", "take profit"], def: "Quanto de lucro (após custos) o bot espera antes de vender." },
-  { term: "Alvo sugerido", aliases: ["preço alvo", "target price", "venda sugerida", "take profit preço"], def: "No Caçador: preço de venda se você comprar agora no last. Pega o maior entre o % da estratégia, o p60 do bounce após dips no tamanho da queda e ~40% da queda 24h; o ATR só corta se passar do teto k×ATR. Mais taxa ida+volta + spread. Não dispara ordem." },
+  { term: "Alvo sugerido", aliases: ["preço alvo", "target price", "venda sugerida", "take profit preço", "preço alvo"], def: "No Caçador: preço de venda se você comprar agora no last. Pega o maior entre o % da estratégia, o p60 do bounce após dips no tamanho da queda e ~40% da queda 24h; o ATR só corta se passar do teto k×ATR. Mais taxa ida+volta + spread. Não dispara ordem." },
+  { term: "Var. média", aliases: ["média de variação", "oscilação média", "avg var", "variação 24h"], def: "No Caçador: média do módulo da variação em janelas de 24h no histórico do scan. Serve para comparar se o preço alvo é compatível com o que o token costuma andar." },
+  { term: "Período de negociação", aliases: ["prazo", "horizonte", "dia semana mês"], def: "No Caçador: Dia, Semana ou Mês — o horizonte com melhor aptidão a completar o ciclo compra→venda." },
   { term: "Ativar bots", aliases: ["desativar bots", "bots off", "esconder bots"], def: "Interruptor em Configurações. Desligado: para todos os bots, some o menu Bot/Lab/Estratégias e não deixa criar/iniciar. Carteira e ordens manuais seguem." },
   { term: "Referência", aliases: ["ref_price", "preço de referência", "trailing"], def: "Preço-base usado para medir a queda. Pode acompanhar máximas enquanto o bot está flat (trailing)." },
   { term: "Flat", aliases: ["sem posição", "fora do mercado"], def: "Estado sem token comprado pelo bot — só esperando o gatilho de compra." },
@@ -7640,7 +7642,7 @@ function renderHunterCandidates(scan) {
     const funBit = funnel.pairs != null
       ? ` · funil: ${funnel.pairs} pares → ${funnel.in_drop_band || 0} na queda → ${funnel.in_drop_and_vol || 0} com vol`
       : "";
-    body.innerHTML = `<tr><td class="empty" colspan="11">${hint}${escHtml(funBit)}</td></tr>`;
+    body.innerHTML = `<tr><td class="empty" colspan="12">${hint}${escHtml(funBit)}</td></tr>`;
     return;
   }
   body.innerHTML = list.map((c, i) => {
@@ -7684,7 +7686,7 @@ function renderHunterCandidates(scan) {
     const fitCls = fit == null ? "" : fit >= 62 ? "hunter-ok" : fit < 45 ? "hunter-bad" : "";
     const cpd = pred.cycles_per_day != null ? Number(pred.cycles_per_day) : null;
     const fitTip = [
-      pred.horizon_label ? `Prazo: ${pred.horizon_label}` : "",
+      pred.horizon_label ? `Período de negociação: ${pred.horizon_label}` : "",
       fit != null ? `Aptidão ${fmt(fit, 1)} (${pred.fitness_label || "—"})` : "",
       cpd != null ? `${fmt(cpd, 2)} ciclos/dia no hist.` : "",
       pred.bounce_prob_pct != null ? `pred. bounce ${fmt(pred.bounce_prob_pct, 0)}%` : "",
@@ -7704,13 +7706,24 @@ function renderHunterCandidates(scan) {
         ? `<span class="hunter-age" title="Listado há ~${fmt(c.age_days, 1)}d${c.listed_at ? ` (${c.listed_at})` : ""}">${fmt(c.age_days, 0)}d</span>`
         : "");
     const pxTip = c.last != null
-      ? `Último preço Spot: ${fmtPx(c.last)}${c.bid != null || c.ask != null ? ` · bid ${c.bid != null ? fmtPx(c.bid) : "—"} / ask ${c.ask != null ? fmtPx(c.ask) : "—"}` : ""}`
-      : "Último preço Spot";
+      ? `Preço atual Spot: ${fmtPx(c.last)}${c.bid != null || c.ask != null ? ` · bid ${c.bid != null ? fmtPx(c.bid) : "—"} / ask ${c.ask != null ? fmtPx(c.ask) : "—"}` : ""}`
+      : "Preço atual Spot";
     const px = c.last != null ? fmtPx(c.last) : "—";
+    const feat = c.candle_features || {};
+    const avgVar = Number(c.avg_var_pct ?? feat.avg_var_pct);
+    const avgVarMed = Number(c.avg_var_median_pct ?? feat.avg_var_median_pct);
+    const avgVarN = c.avg_var_sample ?? feat.avg_var_sample;
+    const avgVarOk = Number.isFinite(avgVar) && avgVar > 0;
     const tgt = hunterSuggestedTarget(c);
+    const avgVarTip = avgVarOk
+      ? `Média |variação| 24h no hist.: ${fmt(avgVar, 2)}%${Number.isFinite(avgVarMed) ? ` · mediana ${fmt(avgVarMed, 2)}%` : ""}${avgVarN ? ` · ${avgVarN} janelas` : ""}${c.atr_daily_pct != null || feat.atr_daily_pct != null ? ` · ATR diário ${fmt(Number(c.atr_daily_pct ?? feat.atr_daily_pct), 2)}%` : ""}`
+      : "Sem histórico suficiente para média de variação 24h";
+    const avgVarCell = avgVarOk
+      ? `<span title="${escHtml(avgVarTip)}">±${fmt(avgVar, 1)}%</span>`
+      : `<span title="${escHtml(avgVarTip)}">—</span>`;
     const tgtTip = tgt
-      ? `Alvo sugerido de venda: ${fmtPx(tgt.px)} (+${fmt(tgt.pct, 1)}% líquido vs preço atual${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${fmt(tgt.gross, 1)}% bruto p/ taxa+spread` : ""}${tgt.sourceLabel ? ` · ${tgt.sourceLabel}` : ""}). ATR + bounce + estilo — não é ordem.`
-      : "Sem alvo: falta preço ou estratégia";
+      ? `Preço alvo de venda: ${fmtPx(tgt.px)} (+${fmt(tgt.pct, 1)}% líquido vs preço atual${Number.isFinite(tgt.cost) && tgt.cost > 0 ? ` · ~${fmt(tgt.gross, 1)}% bruto p/ taxa+spread` : ""}${tgt.sourceLabel ? ` · ${tgt.sourceLabel}` : ""}${avgVarOk ? ` · var. média 24h ±${fmt(avgVar, 1)}%` : ""}). Não é ordem.`
+      : "Sem preço alvo: falta preço ou estratégia";
     const tgtCell = tgt
       ? `<span class="hunter-ok" title="${escHtml(tgtTip)}">${fmtPx(tgt.px)}<small class="hunter-target-pct">+${fmt(tgt.pct, 1)}%</small></span>`
       : `<span title="${escHtml(tgtTip)}">—</span>`;
@@ -7723,7 +7736,7 @@ function renderHunterCandidates(scan) {
       const mark = k === c.best_horizon ? "★ " : "";
       return `${mark}${h.short || k}: apt ${fmt(h.sell_fitness, 0)} · ${fmt(h.cycles_per_day, 2)} cyc/d`;
     }).filter(Boolean);
-    const hzTip = hzTipBits.join(" · ") || "Melhor horizonte entre dia / semana / mês";
+    const hzTip = hzTipBits.join(" · ") || "Melhor período de negociação entre dia / semana / mês";
     const hzCell = `<span class="hunter-hz" title="${escHtml(hzTip)}">${escHtml(hzShort)}</span>`;
     const checksLabel = vTot != null ? `${vOk}/${vTot}` : "—";
     const botBtnLabel = botsOn() && canCreate ? "Criar bot" : "Ver análise";
@@ -7739,6 +7752,7 @@ function renderHunterCandidates(scan) {
       </td>
       <td class="num hunter-col-drop sell" title="${escHtml(dropTip)}">${drop}</td>
       <td class="num hunter-col-px" title="${escHtml(pxTip)}">${px}</td>
+      <td class="num hunter-col-var">${avgVarCell}</td>
       <td class="num hunter-col-target">${tgtCell}</td>
       <td class="hunter-col-strat">${stratCell}</td>
       <td class="hunter-col-hz">${hzCell}</td>

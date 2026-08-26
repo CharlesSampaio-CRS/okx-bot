@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=okx-hunter-tgt2" />
+  <link rel="stylesheet" href="/static/styles.css?v=okx-hunter-var1" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -678,10 +678,11 @@
                     <tr>
                       <th title="Par Spot OKX (BASE-QUOTE)">Token</th>
                       <th class="num hunter-col-drop" title="Queda Spot em 24h — o dip que o radar caça">Queda</th>
-                      <th class="num hunter-col-px" title="Último preço Spot agora">Preço</th>
-                      <th class="num hunter-col-target" title="Preço de venda sugerido se comprar agora (estratégia do scan + taxa/spread)">Alvo</th>
+                      <th class="num hunter-col-px" title="Último preço Spot agora">Preço atual</th>
+                      <th class="num hunter-col-var" title="Média do |variação| em janelas de 24h no histórico do scan">Var. média</th>
+                      <th class="num hunter-col-target" title="Preço de venda sugerido se comprar agora (estratégia + bounce + 40% da queda 24h, teto ATR)">Preço alvo</th>
                       <th class="hunter-col-strat" title="Preset do backtest: queda de compra e lucro % de venda">Estratégia</th>
-                      <th class="hunter-col-hz" title="Prazo com melhor aptidão: Dia, Semana ou Mês">Prazo</th>
+                      <th class="hunter-col-hz" title="Período de negociação com melhor aptidão: Dia, Semana ou Mês">Período de negociação</th>
                       <th class="num hunter-col-fit" title="Nota 0–100 de aptidão a vendas no prazo escolhido">Aptidão</th>
                       <th class="num hunter-col-ret" title="Retorno % do capital na simulação da estratégia">Retorno</th>
                       <th class="hunter-col-liq" title="A=ótima · B=boa · C=aceitável · D=fraca">Liq.</th>
@@ -690,7 +691,7 @@
                     </tr>
                   </thead>
                   <tbody id="hunter-body">
-                    <tr><td class="empty" colspan="11">Clique em Analisar agora para ver oportunidades Spot.</td></tr>
+                    <tr><td class="empty" colspan="12">Clique em Analisar agora para ver oportunidades Spot.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -1224,7 +1225,7 @@
                 <li><strong>Recuperação %</strong> — chance estimada de reação após a queda (não é garantia).</li>
                 <li><strong>Ritmo</strong> — quantas vendas o histórico sugeriu por dia/semana/mês.</li>
                 <li><strong>Checks</strong> — checklist (queda, volume, spread, etc.).</li>
-                <li><strong>Alvo sugerido</strong> — preço (e %) para vender se comprar agora, limitado pelo que o token costuma oscilar (ATR/bounce), não só pelo preset. Na tabela: token → queda → preço → alvo → estratégia → prazo → qualidade.</li>
+                <li><strong>Preço alvo</strong> — preço (e %) para vender se comprar agora. Na tabela: token → queda → preço atual → var. média (oscilação 24h típica) → preço alvo → estratégia → período de negociação → qualidade.</li>
               </ul>
             </article>
 
@@ -1309,7 +1310,7 @@
                 </details>
                 <details class="docs-faq-item" data-docs-faq>
                   <summary>O que é o alvo sugerido no Caçador?</summary>
-                  <p>É o <strong>preço de venda</strong> estimado se você comprar agora no preço atual. Usa o lucro % da melhor estratégia do scan e soma taxa + spread. Aparece na coluna Alvo e no modal. Não envia ordem.</p>
+                  <p>É o <strong>preço alvo</strong> de venda se você comprar agora no <strong>preço atual</strong>. Combina estratégia, bounce típico e ~40% da queda 24h (ATR só como teto). A coluna <strong>Var. média</strong> mostra a oscilação 24h média do token para você comparar. Não envia ordem.</p>
                 </details>
                 <details class="docs-faq-item" data-docs-faq>
                   <summary>O Copiloto já compra e vende sozinho?</summary>
@@ -1618,6 +1619,6 @@
     </div>
   </div>
   <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-  <script src="/static/app.js?v=okx-hunter-tgt2"></script>
+  <script src="/static/app.js?v=okx-hunter-var1"></script>
 </body>
 </html>
