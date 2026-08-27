@@ -3514,7 +3514,7 @@ const DOCS_GLOSSARY = [
   { term: "Horizonte", aliases: ["dia", "semana", "mês", "daily", "weekly", "monthly", "scalp"], def: "Estilo de ritmo: no dia (rápido), na semana ou no mês (mais lento). O Caçador compara os três." },
   { term: "Candles", aliases: ["velas", "ohlc", "gráfico"], def: "Barras de preço (abertura, máxima, mínima, fechamento) usadas no Lab e na análise." },
   { term: "Pré-voo", aliases: ["preflight", "validar bot", "checklist"], def: "Checagens antes de iniciar live: keys, par, saldo, limites, backtest rápido." },
-  { term: "Edge", aliases: ["margem", "net edge", "viável", "só listar viáveis"], def: "Quanto sobra do alvo depois de taxas e spread. «Só listar viáveis» no Caçador esconde pares sem essa folga ou com livro fino demais para a ordem." },
+  { term: "Edge", aliases: ["margem", "net edge", "viável", "só listar viáveis"], def: "Quanto sobra do alvo depois de taxas e spread. «Só listar viáveis» no Caçador sobe esses pares na lista; não esconde os outros dips. Sem aporte, o livro é checado com ~US$ 50, não o teto da conta." },
   { term: "Funding / Trading", aliases: ["funding", "trading account", "transferir"], def: "Contas OKX. O bot gasta do trading. Dinheiro no funding precisa ser transferido antes." },
   { term: "Login Google", aliases: ["cognito", "entrar", "oauth"], def: "Entrada com a conta Google. Cada e-mail tem as próprias chaves OKX e bots." },
   { term: "API Key", aliases: ["chaves", "secret", "passphrase"], def: "Credenciais da OKX no servidor, ligadas ao seu e-mail. Prefira Read+Trade sem withdraw. O secret não é reexibido." },

@@ -1251,6 +1251,34 @@ def pick_best_horizon_bundle(
     }
 
 
+# Referência de liquidez do radar quando não há aporte — nunca o teto da conta.
+HUNTER_LIQ_REF_USD = 50.0
+# Vol. mín. acima disso no radar costuma ser erro de digitação (ex. 800 mil).
+HUNTER_MIN_VOL_CAP_USD = 250_000.0
+
+
+def hunter_liquidity_order_usd(
+    *,
+    budget: float,
+    budget_ccy: str,
+    usdt_brl: float | None,
+    min_usd: float,
+    max_usd: float,
+) -> float:
+    """USD de referência para livro/impacto. Sem aporte usa 50, não o max da conta."""
+    lo = max(0.0, float(min_usd or 0))
+    hi = max(lo, float(max_usd or 100))
+    budget_f = float(budget or 0)
+    if budget_f > 0:
+        ccy = str(budget_ccy or "BRL").upper()
+        if ccy == "BRL" and usdt_brl and float(usdt_brl) > 0:
+            raw = budget_f / float(usdt_brl)
+        else:
+            raw = budget_f
+        return max(lo, min(hi, raw))
+    return max(lo, min(HUNTER_LIQ_REF_USD, hi))
+
+
 def union_horizon_filters(user_cfg: dict[str, Any] | None = None) -> dict[str, float]:
     """Faixa que cobre diário+semanal+mensal (união dos presets), respeitando afrouxar do user."""
     cfg = user_cfg or {}

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import unittest
 
-from app.hunter import analyze_candles, suggested_levels, suggested_levels_pair
+from app.hunter import (
+    analyze_candles,
+    hunter_liquidity_order_usd,
+    suggested_levels,
+    suggested_levels_pair,
+)
 
 
 def _bars(*, n: int = 40, close: float = 100.0, rng: float = 2.0, step_ms: int = 4 * 3_600_000):
@@ -128,6 +133,26 @@ class HunterTargetTest(unittest.TestCase):
         self.assertAlmostEqual(out["suggested_target_pct"], 3.2)
         self.assertAlmostEqual(out["suggested_wide_target_pct"], 4.944)
         self.assertGreater(out["suggested_wide_target_px"], out["suggested_target_px"])
+
+    def test_liquidity_order_ignores_account_max_without_budget(self):
+        usd = hunter_liquidity_order_usd(
+            budget=0,
+            budget_ccy="BRL",
+            usdt_brl=5.5,
+            min_usd=5,
+            max_usd=5000,
+        )
+        self.assertAlmostEqual(usd, 50.0)
+
+    def test_liquidity_order_uses_budget_when_set(self):
+        usd = hunter_liquidity_order_usd(
+            budget=550,
+            budget_ccy="BRL",
+            usdt_brl=5.5,
+            min_usd=5,
+            max_usd=5000,
+        )
+        self.assertAlmostEqual(usd, 100.0)
 
     def test_avg_var_pct_on_known_moves(self):
         ts = 1_700_000_000_000

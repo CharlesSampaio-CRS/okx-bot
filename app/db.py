@@ -1431,6 +1431,14 @@ def get_hunter_settings() -> dict[str, Any]:
     if ttl <= 180:
         ttl = 1800
     out["cache_ttl_s"] = max(300, min(3600, ttl))
+    try:
+        vol = float(out.get("min_vol_usd") or 80_000)
+    except (TypeError, ValueError):
+        vol = 80_000.0
+    # 800 mil no radar esvazia a lista; teto = um pouco acima do preset diário (200k).
+    if vol > 250_000:
+        vol = 80_000.0
+    out["min_vol_usd"] = vol
     return out
 
 

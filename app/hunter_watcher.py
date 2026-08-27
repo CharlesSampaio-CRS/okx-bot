@@ -401,18 +401,15 @@ class HunterWatcher:
                     usdt_brl = 1.0 / inv
         except Exception:
             usdt_brl = None
-        if budget > 0:
-            if budget_ccy == "BRL" and usdt_brl and usdt_brl > 0:
-                order_usd = budget / usdt_brl
-            elif budget_ccy in {"USDT", "USDC", "USD"}:
-                order_usd = budget
-            else:
-                order_usd = budget
-        else:
-            order_usd = float(limits.get("max_usd") or 50)
         lo = float(limits.get("min_usd") or 5)
         hi = float(limits.get("max_usd") or 100)
-        order_usd = max(lo, min(hi, order_usd))
+        order_usd = hunter_scan.hunter_liquidity_order_usd(
+            budget=budget,
+            budget_ccy=budget_ccy,
+            usdt_brl=usdt_brl,
+            min_usd=lo,
+            max_usd=hi,
+        )
         # União dos 3 horizontes como faixa base; filtros avançados do user sobrescrevem
         band = hunter_scan.union_horizon_filters()
         min_drop = float(cfg.get("min_drop_pct") or band["min_drop_pct"])
@@ -526,25 +523,9 @@ class HunterWatcher:
             blacklist=list(cfg.get("blacklist") or []),
             exclude_inst=exclude,
             top_n=top_n,
-            require_tradeable=require_tradeable,
+            require_tradeable=False,
         )
-        # Filtro «viáveis» não pode esvaziar o radar: mostra os dips que já passaram
-        # queda/volume/spread, só ordenados com os viáveis na frente.
-        if require_tradeable and not candidates and pre:
-            candidates = hunter_scan.scan_dips(
-                enriched_pairs,
-                min_drop_pct=min_drop,
-                max_drop_pct=max_drop,
-                min_vol=min_vol,
-                max_spread_pct=max_spread,
-                profit_target_pct=profit_target,
-                fee_rate_pct=fee_pct,
-                order_usd=order_usd,
-                blacklist=list(cfg.get("blacklist") or []),
-                exclude_inst=exclude,
-                top_n=top_n,
-                require_tradeable=False,
-            )
+        # «Só viáveis» só prioriza quem passa no livro/edge — não corta o radar para 1–2.
         candidates = await self._attach_best_strategies(
             candidates,
             cfg=cfg,
