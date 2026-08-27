@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=okx-order-fx2" />
+  <link rel="stylesheet" href="/static/styles.css?v=okx-hunter-filt1" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -642,6 +642,14 @@
                   <label class="lab-field" title="Diferença percentual entre compra e venda no book">Spread máx. %
                     <input id="hunter-max-spread" type="number" min="0.05" max="5" step="0.05" value="1" title="Spread alto = liquidez pior e custo maior na ida/volta" />
                   </label>
+                  <label class="lab-field" title="Nota mínima de liquidez no próximo scan (A=ótima … D=fraca)">Liquidez mín.
+                    <select id="hunter-min-liq" title="A=ótima · B=boa · C=aceitável · D=fraca. Vale no próximo Escanear agora.">
+                      <option value="">Todas</option>
+                      <option value="C">C ou melhor</option>
+                      <option value="B">B ou melhor</option>
+                      <option value="A">Só A</option>
+                    </select>
+                  </label>
                 </div>
               </details>
 
@@ -672,6 +680,34 @@
               <div class="card-h">
                 <h2>Top 30 do momento</h2>
                 <span id="hunter-scan-meta" class="hint" style="margin:0"></span>
+              </div>
+              <div class="hunter-list-filters" id="hunter-list-filters">
+                <label class="hunter-lf">Buscar
+                  <input id="hunter-q" type="search" placeholder="Token ou par" autocomplete="off" />
+                </label>
+                <label class="hunter-lf">Liquidez
+                  <select id="hunter-liq-filter" title="Filtra a lista já escaneada. C ou melhor / B ou melhor / só A.">
+                    <option value="">Todas</option>
+                    <option value="C">C ou melhor</option>
+                    <option value="B">B ou melhor</option>
+                    <option value="A">Só A</option>
+                  </select>
+                </label>
+                <label class="hunter-lf">Horizonte
+                  <select id="hunter-hz-filter" title="Dia, semana ou mês sugerido pelo radar">
+                    <option value="">Todos</option>
+                    <option value="daily">Dia</option>
+                    <option value="weekly">Semana</option>
+                    <option value="monthly">Mês</option>
+                  </select>
+                </label>
+                <label class="hunter-lf">Aptidão
+                  <select id="hunter-fit-filter" title="Nota mínima de aptidão a vendas">
+                    <option value="0">Todas</option>
+                    <option value="45">≥ 45</option>
+                    <option value="62">≥ 62</option>
+                  </select>
+                </label>
               </div>
               <div class="table-wrap">
                 <table class="hunter-table">
@@ -1215,6 +1251,7 @@
                 <li>Queda 24h dentro da faixa (mín./máx. dos filtros).</li>
                 <li>Volume Spot (com piso mais baixo para listing novo).</li>
                 <li>Spread bid/ask e profundidade aproximada do livro.</li>
+                <li><strong>Filtros da lista</strong> — busca, liquidez mínima (A–D), horizonte (dia/semana/mês) e aptidão. A liquidez também vale no próximo scan. Os outros afinam a tabela na hora, sem varrer de novo.</li>
                 <li>Viabilidade vs taxa + alvo (edge).</li>
                 <li><strong>Só listar viáveis</strong> — coloca na frente os pares em que o alvo ainda cobre taxa + spread e a ordem cabe no livro. Não esconde o resto do funil (queda/volume/spread). Sem aporte, a checagem de livro usa ~US$ 50 — não o teto da conta.</li>
                 <li>Backtest rápido da melhor estratégia em Dia/Semana/Mês.</li>
@@ -1622,6 +1659,6 @@
     </div>
   </div>
   <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-  <script src="/static/app.js?v=okx-order-fx2"></script>
+  <script src="/static/app.js?v=okx-hunter-filt1"></script>
 </body>
 </html>

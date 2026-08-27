@@ -417,12 +417,13 @@ class HunterWatcher:
         min_vol = float(cfg.get("min_vol_usd") or band["min_vol_usd"])
         max_spread = float(cfg.get("max_spread_pct") or band["max_spread_pct"])
         require_tradeable = bool(cfg.get("require_tradeable"))
+        min_liq = hunter_scan.normalize_min_liq(cfg.get("min_liq"))
         top_n = max(1, min(30, int(cfg.get("top_n") or 30)))
         validate_days = 90  # multi-horizonte: candles cobrem até mensal
 
         cache_key = (
-            f"hunter_scan_v10|all|{cfg.get('quote')}|{min_drop}|{max_drop}|"
-            f"{min_vol}|{max_spread}|{order_usd:.2f}|{require_tradeable}|{top_n}|{budget}|{budget_ccy}"
+            f"hunter_scan_v11|all|{cfg.get('quote')}|{min_drop}|{max_drop}|"
+            f"{min_vol}|{max_spread}|{min_liq}|{order_usd:.2f}|{require_tradeable}|{top_n}|{budget}|{budget_ccy}"
         )
         if not force:
             hit = db.get_api_cache(cache_key, float(cfg.get("cache_ttl_s") or 1800))
@@ -470,6 +471,7 @@ class HunterWatcher:
             exclude_inst=exclude,
             top_n=min(50, top_n + 10),
             require_tradeable=False,
+            min_liq=min_liq,
         )
 
         enrich_n = min(len(pre), top_n)
@@ -524,6 +526,7 @@ class HunterWatcher:
             exclude_inst=exclude,
             top_n=top_n,
             require_tradeable=False,
+            min_liq=min_liq,
         )
         # «Só viáveis» só prioriza quem passa no livro/edge — não corta o radar para 1–2.
         candidates = await self._attach_best_strategies(

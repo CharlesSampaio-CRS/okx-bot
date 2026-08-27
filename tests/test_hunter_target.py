@@ -7,6 +7,8 @@ import unittest
 from app.hunter import (
     analyze_candles,
     hunter_liquidity_order_usd,
+    liquidity_rank,
+    normalize_min_liq,
     suggested_levels,
     suggested_levels_pair,
 )
@@ -178,6 +180,11 @@ class HunterTargetTest(unittest.TestCase):
         self.assertIsNotNone(feat.get("avg_var_pct"))
         self.assertGreater(feat["avg_var_pct"], 1.0)
         self.assertLess(feat["avg_var_pct"], 3.0)
+
+    def test_liq_rank_and_min_liq(self):
+        self.assertGreater(liquidity_rank("A"), liquidity_rank("C"))
+        self.assertEqual(normalize_min_liq("b"), "B")
+        self.assertEqual(normalize_min_liq("todas"), "")
 
 
 if __name__ == "__main__":

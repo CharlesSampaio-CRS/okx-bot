@@ -3547,6 +3547,7 @@ const DOCS_GLOSSARY = [
   { term: "Aptidão / encaixe", aliases: ["sell_fitness", "aptidão", "encaixe", "fitness"], def: "Nota do Caçador (0–100): liquidez + histórico + ritmo de vendas no estilo Dia/Semana/Mês." },
   { term: "Recuperação", aliases: ["bounce", "pred bounce", "bounce_prob"], def: "Estimativa heurística de chance de o preço reagir após a queda. Não é garantia." },
   { term: "Horizonte", aliases: ["dia", "semana", "mês", "daily", "weekly", "monthly", "scalp"], def: "Estilo de ritmo: no dia (rápido), na semana ou no mês (mais lento). O Caçador compara os três." },
+  { term: "Filtros do Caçador", aliases: ["filtro liquidez", "filtro hunter", "liquidez mínima"], def: "Na lista: busca, liquidez mínima (A–D), horizonte e aptidão afinam o Top 30 na hora. A liquidez mínima também entra no próximo scan. Queda, volume e spread ficam em Filtros avançados." },
   { term: "Candles", aliases: ["velas", "ohlc", "gráfico"], def: "Barras de preço (abertura, máxima, mínima, fechamento) usadas no Lab e na análise." },
   { term: "Pré-voo", aliases: ["preflight", "validar bot", "checklist"], def: "Checagens antes de iniciar live: keys, par, saldo, limites, backtest rápido." },
   { term: "Edge", aliases: ["margem", "net edge", "viável", "só listar viáveis"], def: "Quanto sobra do alvo depois de taxas e spread. «Só listar viáveis» no Caçador sobe esses pares na lista; não esconde os outros dips. Sem aporte, o livro é checado com ~US$ 50, não o teto da conta." },
@@ -7555,9 +7556,13 @@ function applyHunterSettingsToForm(s) {
   if ($("hunter-min-vol")) $("hunter-min-vol").value = s.min_vol_usd ?? 80000;
   if ($("hunter-max-spread")) $("hunter-max-spread").value = s.max_spread_pct ?? 1;
   if ($("hunter-tradeable")) $("hunter-tradeable").checked = s.require_tradeable !== false;
+  const liq = String(s.min_liq || "").toUpperCase();
+  if ($("hunter-min-liq")) $("hunter-min-liq").value = liq;
+  if ($("hunter-liq-filter") && !$("hunter-liq-filter").value) $("hunter-liq-filter").value = liq;
 }
 
 function hunterSettingsFromForm() {
+  const liq = String($("hunter-min-liq")?.value || $("hunter-liq-filter")?.value || "").toUpperCase();
   return {
     quote_amount: 0,
     budget_ccy: "BRL",
@@ -7567,9 +7572,63 @@ function hunterSettingsFromForm() {
     min_vol_usd: Number($("hunter-min-vol")?.value || 80000),
     max_spread_pct: Number($("hunter-max-spread")?.value || 1),
     require_tradeable: !!$("hunter-tradeable")?.checked,
+    min_liq: ["A", "B", "C", "D"].includes(liq) ? liq : "",
     validate_days: 90,
     top_n: 30,
   };
+}
+
+const HUNTER_LIST_KEY = "okx_hunter_list_filters";
+
+function hunterListFiltersFromDom() {
+  return {
+    q: String($("hunter-q")?.value || "").trim(),
+    liq: String($("hunter-liq-filter")?.value || "").toUpperCase(),
+    hz: String($("hunter-hz-filter")?.value || ""),
+    fit: Number($("hunter-fit-filter")?.value || 0) || 0,
+  };
+}
+
+function saveHunterListFilters() {
+  try {
+    localStorage.setItem(HUNTER_LIST_KEY, JSON.stringify(hunterListFiltersFromDom()));
+  } catch (_) { /* ignore */ }
+}
+
+function applyHunterListFiltersToForm() {
+  let f = { q: "", liq: "", hz: "", fit: 0 };
+  try {
+    f = { ...f, ...(JSON.parse(localStorage.getItem(HUNTER_LIST_KEY) || "{}") || {}) };
+  } catch (_) { /* ignore */ }
+  if ($("hunter-q")) $("hunter-q").value = f.q || "";
+  if ($("hunter-liq-filter")) $("hunter-liq-filter").value = String(f.liq || "").toUpperCase();
+  if ($("hunter-hz-filter")) $("hunter-hz-filter").value = f.hz || "";
+  if ($("hunter-fit-filter")) $("hunter-fit-filter").value = String(Number(f.fit || 0) || 0);
+}
+
+function hunterCandidateMatches(c, f) {
+  const q = String(f.q || "").trim().toUpperCase();
+  if (q) {
+    const inst = String(c.inst_id || "").toUpperCase();
+    const base = String(c.base || "").toUpperCase();
+    if (!inst.includes(q) && !base.includes(q)) return false;
+  }
+  if (f.liq && tokenLiqRank(c.liquidity) < tokenLiqRank(f.liq)) return false;
+  if (f.hz) {
+    const hz = String(c.best_horizon || c.prediction?.horizon || "").toLowerCase();
+    if (hz !== f.hz) return false;
+  }
+  if (f.fit > 0) {
+    const fit = Number(c.prediction?.sell_fitness);
+    if (!Number.isFinite(fit) || fit < f.fit) return false;
+  }
+  return true;
+}
+
+async function persistHunterSettings() {
+  try {
+    await api("/api/hunter/settings", { method: "PUT", body: JSON.stringify(hunterSettingsFromForm()) });
+  } catch (_) { /* scan segue mesmo se o save falhar */ }
 }
 
 function renderHunterStatus(data) {
@@ -7973,27 +8032,35 @@ function renderHunterCandidates(scan) {
   const meta = $("hunter-scan-meta");
   if (!body) return;
   lastHunterScan = scan;
-  const list = scan?.candidates || [];
+  const raw = scan?.candidates || [];
+  const f = hunterListFiltersFromDom();
+  const list = raw.filter((c) => hunterCandidateMatches(c, f));
   const funnel = scan?.funnel || {};
+  const filtered = list.length !== raw.length;
   if (meta) {
     const when = scan?.scanned_at ? String(scan.scanned_at).replace("T", " ").replace("+00:00", "") : "";
     const cache = scan?.cached ? ` · cache ${Math.round(scan.cache_age_s || 0)}s` : "";
     const days = scan?.validate_days ? ` · hist. até ${scan.validate_days}d` : "";
     const hz = " · Dia/Semana/Mês";
     const fun = funnel.pairs != null
-      ? ` · ${funnel.pairs} pares → ${funnel.in_drop_band || 0} na queda → ${funnel.in_drop_and_vol || 0} c/ vol → ${list.length} final`
+      ? ` · ${funnel.pairs} pares → ${funnel.in_drop_band || 0} na queda → ${funnel.in_drop_and_vol || 0} c/ vol → ${raw.length} final`
       : "";
-    meta.textContent = list.length
-      ? `${list.length} de até 30 · Spot${hz}${fun}${days}${when ? ` · ${when}` : ""}${cache}`
+    const vis = filtered ? `${list.length} de ${raw.length} (filtrado)` : `${list.length} de até 30`;
+    meta.textContent = raw.length
+      ? `${vis} · Spot${hz}${fun}${days}${when ? ` · ${when}` : ""}${cache}`
       : (scan?.empty_hint || "Nenhuma oportunidade Spot negociável na sua região com os filtros atuais");
     meta.title = "Funil + ranking por aptidão preditiva no horizonte escolhido";
   }
-  if (!list.length) {
+  if (!raw.length) {
     const hint = escHtml(scan?.empty_hint || "Nada na faixa. Afrouxe volume/spread ou a queda mín./máx.");
     const funBit = funnel.pairs != null
       ? ` · funil: ${funnel.pairs} pares → ${funnel.in_drop_band || 0} na queda → ${funnel.in_drop_and_vol || 0} com vol`
       : "";
     body.innerHTML = `<tr><td class="empty" colspan="13">${hint}${escHtml(funBit)}</td></tr>`;
+    return;
+  }
+  if (!list.length) {
+    body.innerHTML = `<tr><td class="empty" colspan="13">Nenhum token com esses filtros. Afrouxe liquidez, horizonte, aptidão ou a busca.</td></tr>`;
     return;
   }
   body.innerHTML = list.map((c, i) => {
@@ -8124,6 +8191,7 @@ async function loadHunter({ forceScan = false, preserveToggle = false } = {}) {
   try {
     const data = await api("/api/hunter");
     lastHunter = data;
+    applyHunterListFiltersToForm();
     applyHunterSettingsToForm(data.settings);
     // Toggle: só sincronizar na primeira carga (não em reloads)
     if (!preserveToggle && !loadHunter._toggled) {
@@ -8154,6 +8222,7 @@ loadHunter._toggled = false;
 
 $("btn-hunter-scan")?.addEventListener("click", () => {
   withRefresh("btn-hunter-scan", async () => {
+    await persistHunterSettings();
     const scan = await api("/api/hunter/scan?refresh=1");
     renderHunterCandidates(scan);
     if (lastHunter) renderHunterStatus({ ...lastHunter, last_scan: scan });
@@ -8176,12 +8245,27 @@ $("hunter-auto-toggle")?.addEventListener("change", async (ev) => {
   }
   startHunterPolling();
   try {
+    await persistHunterSettings();
     const scan = await api("/api/hunter/scan?refresh=1");
     renderHunterCandidates(scan);
     if (lastHunter) renderHunterStatus({ ...lastHunter, last_scan: scan });
   } catch (err) {
     flash("hunter-msg", err?.message || "Erro ao escanear", false);
   }
+});
+
+function onHunterListFilterChange() {
+  const f = hunterListFiltersFromDom();
+  if ($("hunter-min-liq")) $("hunter-min-liq").value = f.liq || "";
+  saveHunterListFilters();
+  if (lastHunterScan) renderHunterCandidates(lastHunterScan);
+}
+$("hunter-list-filters")?.addEventListener("input", onHunterListFilterChange);
+$("hunter-list-filters")?.addEventListener("change", onHunterListFilterChange);
+$("hunter-min-liq")?.addEventListener("change", () => {
+  if ($("hunter-liq-filter")) $("hunter-liq-filter").value = $("hunter-min-liq").value;
+  saveHunterListFilters();
+  if (lastHunterScan) renderHunterCandidates(lastHunterScan);
 });
 
 $("hunter-body")?.addEventListener("click", (ev) => {

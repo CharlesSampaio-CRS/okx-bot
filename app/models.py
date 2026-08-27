@@ -240,6 +240,7 @@ class HunterSettingsUpdate(BaseModel):
     min_vol_usd: Optional[float] = Field(default=None, ge=0)
     max_spread_pct: Optional[float] = Field(default=None, ge=0.05, le=5)
     require_tradeable: Optional[bool] = None
+    min_liq: Optional[str] = Field(default=None, max_length=2)
     top_n: Optional[int] = Field(default=None, ge=1, le=30)
     strategy_id: Optional[str] = Field(default=None, max_length=40)
     scan_interval_min: Optional[float] = Field(default=None, ge=1, le=60)

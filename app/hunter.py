@@ -82,6 +82,15 @@ def spread_pct(bid: float | None, ask: float | None, last: float | None = None) 
     return ((a - b) / mid) * 100.0
 
 
+def liquidity_rank(grade: str | None) -> int:
+    return {"A": 4, "B": 3, "C": 2, "D": 1}.get(str(grade or "D").upper(), 0)
+
+
+def normalize_min_liq(raw: Any) -> str:
+    g = str(raw or "").strip().upper()
+    return g if g in {"A", "B", "C", "D"} else ""
+
+
 def liquidity_label(vol: float, spread: float | None, book_usd: float | None = None) -> str:
     """A=ótima · B=boa · C=aceitável · D=fraca."""
     points = 0
@@ -547,6 +556,7 @@ def scan_dips(
     exclude_inst: set[str] | None = None,
     top_n: int = 25,
     require_tradeable: bool = False,
+    min_liq: str = "",
 ) -> list[dict[str, Any]]:
     blocked = {str(x).upper() for x in (blacklist or [])}
     exclude = {str(x).upper() for x in (exclude_inst or set())}
@@ -581,6 +591,9 @@ def scan_dips(
         if not scored.get("eligible"):
             continue
         if require_tradeable and not scored.get("tradeable"):
+            continue
+        need_liq = normalize_min_liq(min_liq)
+        if need_liq and liquidity_rank(scored.get("liquidity")) < liquidity_rank(need_liq):
             continue
         drop = -float(p.get("chg24") or 0)
         out.append(

@@ -1396,6 +1396,7 @@ _HUNTER_DEFAULTS: dict[str, Any] = {
     "min_vol_usd": 80_000.0,
     "max_spread_pct": 1.0,
     "require_tradeable": True,
+    "min_liq": "",
     "top_n": 30,
     "strategy_id": "deep_dip",
     "scan_interval_min": 10.0,
@@ -1439,6 +1440,8 @@ def get_hunter_settings() -> dict[str, Any]:
     if vol > 250_000:
         vol = 80_000.0
     out["min_vol_usd"] = vol
+    g = str(out.get("min_liq") or "").strip().upper()
+    out["min_liq"] = g if g in {"A", "B", "C", "D"} else ""
     return out
 
 
@@ -1460,6 +1463,8 @@ def save_hunter_settings(patch: dict[str, Any]) -> dict[str, Any]:
     cur["min_vol_usd"] = max(0.0, float(cur.get("min_vol_usd") or 0))
     cur["max_spread_pct"] = max(0.05, min(5.0, float(cur.get("max_spread_pct") or 0.8)))
     cur["require_tradeable"] = bool(cur.get("require_tradeable"))
+    g = str(cur.get("min_liq") or "").strip().upper()
+    cur["min_liq"] = g if g in {"A", "B", "C", "D"} else ""
     cur["top_n"] = max(1, min(30, int(cur.get("top_n") or 30)))
     cur["scan_interval_min"] = max(1.0, min(60.0, float(cur.get("scan_interval_min") or 5)))
     cur["cooldown_min"] = max(0, min(24 * 60, int(cur.get("cooldown_min") or 90)))
