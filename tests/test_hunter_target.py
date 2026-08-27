@@ -134,6 +134,18 @@ class HunterTargetTest(unittest.TestCase):
         self.assertAlmostEqual(out["suggested_wide_target_pct"], 4.944)
         self.assertGreater(out["suggested_wide_target_px"], out["suggested_target_px"])
 
+    def test_pair_stretches_when_preset_wins_both(self):
+        out = suggested_levels_pair(
+            1.0,
+            profit_target_pct=3.0,
+            fee_rate_pct=0.10,
+            spread_pct_val=0.10,
+            drop_pct=2.0,
+        )
+        self.assertAlmostEqual(out["suggested_target_pct"], 3.0)
+        self.assertGreater(out["suggested_wide_target_pct"], out["suggested_target_pct"] + 0.15)
+        self.assertGreater(out["suggested_wide_target_px"], out["suggested_target_px"])
+
     def test_liquidity_order_ignores_account_max_without_budget(self):
         usd = hunter_liquidity_order_usd(
             budget=0,

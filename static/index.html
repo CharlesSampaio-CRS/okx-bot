@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=okx-hunter-funnel3" />
+  <link rel="stylesheet" href="/static/styles.css?v=okx-hunter-wide2" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -681,7 +681,7 @@
                       <th class="num hunter-col-px" title="Último preço Spot agora">Preço atual</th>
                       <th class="num hunter-col-var" title="Média do |variação| em janelas de 24h no histórico do scan">Var. média</th>
                       <th class="num hunter-col-target" title="Alvo conservador: estratégia + bounce p60 + 40% da queda 24h; ATR pode cortar o excesso">Alvo conservador</th>
-                      <th class="num hunter-col-target hunter-col-target-wide" title="Alvo ambicioso: ~62% da queda 24h (Fibonacci); o ATR não corta abaixo dessa recuperação">Alvo ambicioso</th>
+                      <th class="num hunter-col-target hunter-col-target-wide" title="Alvo ambicioso: ~62% da queda 24h (ou 1,5× o conservador se empatar); o ATR não corta abaixo da recuperação">Alvo ambicioso</th>
                       <th class="hunter-col-strat" title="Preset do backtest: queda de compra e lucro % de venda">Estratégia</th>
                       <th class="hunter-col-hz" title="Período de negociação com melhor aptidão: Dia, Semana ou Mês">Período de negociação</th>
                       <th class="num hunter-col-fit" title="Nota 0–100 de aptidão a vendas no prazo escolhido">Aptidão</th>
@@ -1218,7 +1218,7 @@
                 <li><strong>Só listar viáveis</strong> — coloca na frente os pares em que o alvo ainda cobre taxa + spread e a ordem cabe no livro. Não esconde o resto do funil (queda/volume/spread). Sem aporte, a checagem de livro usa ~US$ 50 — não o teto da conta.</li>
                 <li>Backtest rápido da melhor estratégia em Dia/Semana/Mês.</li>
                 <li><strong>Alvo conservador</strong> — preço de venda “mais seguro” se você comprar agora. Pega o maior entre o % da estratégia, o bounce típico (p60) e ~40% da queda 24h. O ATR pode cortar se passar de k×ATR diário (1,5× dia, 2,5× semana, 3,5× mês). Mais taxa ida+volta + spread. É estimativa, não ordem.</li>
-                <li><strong>Alvo ambicioso</strong> — mesma base, mas mira ~62% da queda 24h (Fibonacci 61,8%). O ATR <em>não</em> corta abaixo dessa recuperação: depois de um dump, o alvo não fica achatado pela volatilidade calma. Mais difícil de atingir; o formulário do bot continua com o conservador.</li>
+                <li><strong>Alvo ambicioso</strong> — mira ~62% da queda 24h (Fibonacci 61,8%). Se isso empatar com o conservador (estratégia/bounce já era maior), estica para ~1,5× o conservador ou ~79% da queda. O ATR não corta abaixo da recuperação. Mais difícil de atingir; o formulário do bot continua com o conservador.</li>
                 <li>Nota de encaixe + texto em português no modal unificado de criar bot.</li>
               </ul>
               <h3 class="docs-h3">O que os números querem dizer</h3>
@@ -1621,6 +1621,6 @@
     </div>
   </div>
   <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-  <script src="/static/app.js?v=okx-hunter-funnel3"></script>
+  <script src="/static/app.js?v=okx-hunter-wide2"></script>
 </body>
 </html>

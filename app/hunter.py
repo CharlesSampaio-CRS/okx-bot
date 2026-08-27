@@ -284,11 +284,36 @@ def suggested_levels(
     }
 
 
+def _wide_target_fields(
+    last_f: float,
+    net_pct: float,
+    cost_pct: float,
+    *,
+    source: str,
+    source_label: str,
+    reclaim_pct: float | None,
+) -> dict[str, Any]:
+    gross = net_pct + cost_pct
+    px = last_f * (1.0 + gross / 100.0)
+    return {
+        "suggested_wide_target_pct": round(net_pct, 3),
+        "suggested_wide_target_gross_pct": round(gross, 3),
+        "suggested_wide_target_px": round(px, 10),
+        "suggested_wide_target_source": source,
+        "suggested_wide_target_source_label": source_label,
+        "suggested_wide_reclaim_pct": round(reclaim_pct, 3) if reclaim_pct is not None else None,
+    }
+
+
 def suggested_levels_pair(
     last: float | None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Conservador (chaves atuais) + ambicioso (`suggested_wide_*`)."""
+    """Conservador (chaves atuais) + ambicioso (`suggested_wide_*`).
+
+    Se o ambicioso empata com o conservador (mesmo preset/bounce), estica
+    para 1,5× o conservador ou ~79% da queda 24h — a coluna não pode repetir.
+    """
     kwargs.pop("style", None)
     cons = suggested_levels(last, style="conservative", **kwargs)
     if not cons:
@@ -306,6 +331,29 @@ def suggested_levels_pair(
     for src, dst in remap:
         if src in wide:
             out[dst] = wide[src]
+
+    cons_pct = float(out.get("suggested_target_pct") or 0)
+    wide_pct = float(out.get("suggested_wide_target_pct") or 0)
+    last_f = _f(out.get("suggested_entry_px") or last)
+    cost = float(out.get("suggested_cost_pct") or 0)
+    if last_f and last_f > 0 and round(wide_pct, 1) <= round(cons_pct, 1):
+        drop_f = _f(kwargs.get("drop_pct")) or 0.0
+        aims = [cons_pct * WIDE_VS_CONS_MULT, cons_pct + 1.0]
+        if drop_f > 0:
+            aims.append(drop_f * RECLAIM_DROP_FRAC_EXT)
+            aims.append(drop_f * RECLAIM_DROP_FRAC_WIDE)
+        want = max(aims)
+        reclaim_w = _f(out.get("suggested_wide_reclaim_pct"))
+        out.update(
+            _wide_target_fields(
+                last_f,
+                want,
+                cost,
+                source="stretch",
+                source_label="ambicioso acima do conservador (fib/1,5×)",
+                reclaim_pct=reclaim_w,
+            )
+        )
     return out
 
 
@@ -637,6 +685,9 @@ TARGET_NET_FLOOR_PCT = 0.60
 RECLAIM_DROP_FRAC = 0.40
 # Alvo ambicioso: retração Fibonacci 61,8% da queda 24h.
 RECLAIM_DROP_FRAC_WIDE = 0.618
+# Se o conservador já ganhou (preset/bounce), estica o ambicioso.
+WIDE_VS_CONS_MULT = 1.5
+RECLAIM_DROP_FRAC_EXT = 0.786
 
 
 def normalize_horizon(raw: Any) -> str:
