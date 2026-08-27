@@ -524,6 +524,32 @@ function toBrl(amount, currency = "USD") {
 }
 
 // Conversão alternativa: se quote é BRL → mostra USD; se USD/USDT → mostra BRL
+function orderNotionalFx(amountQuote, quoteCcy) {
+  const n = Number(amountQuote);
+  if (!Number.isFinite(n) || n <= 0) return { usd: null, brl: null };
+  const q = String(quoteCcy || "USDT").toUpperCase();
+  let usd = null;
+  let brl = null;
+  if (["USDT", "USDC", "USD", "DAI"].includes(q)) {
+    usd = n;
+    brl = toBrl(n, "USD");
+  } else if (q === "BRL") {
+    brl = n;
+    usd = usdtBrlRate && usdtBrlRate > 0 ? n / usdtBrlRate : null;
+  } else {
+    usd = quoteToUsd(n, q);
+    brl = usd != null ? toBrl(usd, "USD") : toBrl(n, q);
+  }
+  return { usd, brl };
+}
+
+function formatUsdBrl(usd, brl) {
+  const parts = [];
+  if (usd != null && Number.isFinite(Number(usd))) parts.push(`US$ ${fmt(usd, 2)}`);
+  if (brl != null && Number.isFinite(Number(brl))) parts.push(`R$ ${fmt(brl, 2)}`);
+  return parts.join(" · ");
+}
+
 function toAltCcy(amount, quoteCcy) {
   if (amount == null || Number.isNaN(Number(amount))) return null;
   const q = String(quoteCcy || "USDT").toUpperCase();
@@ -3530,6 +3556,7 @@ const DOCS_GLOSSARY = [
   { term: "Conta OKX", aliases: ["várias contas", "outra conta", "multi conta", "subconta", "secret", "api key", "sair"], def: "Um conjunto de API Key + Secret + Passphrase. Cada login Google tem só uma. Para usar outro e-mail, clique em Sair (no computador, embaixo do menu; no celular, na faixa do topo ao lado do logo) e escolha a conta no Google. No celular botões e confirmações empilham; tabelas deslizam na horizontal." },
   { term: "Demo / Live", aliases: ["simulated", "flag", "demo trading"], def: "Demo = ambiente simulado OKX. Live = dinheiro real." },
   { term: "Limites USD", aliases: ["min_usd", "max_usd", "teto"], def: "Mínimo e máximo por ordem (manual ou bot), convertidos para USD nas Configurações." },
+  { term: "Ordem limite", aliases: ["limit", "preço limite", "post-only", "ioc", "fok"], def: "Ordem com preço definido (não a mercado). Ao digitar, o formulário mostra o valor em US$ e R$ e quanto o preço está acima ou abaixo do último do mercado." },
   { term: "Estratégia", aliases: ["preset", "scalp", "balanced"], def: "Receita pronta de queda/alvo/taxa. Pode validar no Lab/Caçador e ainda editar na mão." },
   { term: "Trailing", aliases: ["ref trailing", "máxima"], def: "Enquanto flat, a referência pode subir com o preço — evita comprar em máxima absoluta velha." },
   { term: "Listing novo", aliases: ["token novo", "age_days"], def: "Par listado há poucos dias. O Caçador aceita volume mínimo menor, mas o risco é maior." },
@@ -5540,61 +5567,137 @@ function moneyQuote(n, ccy, digits = 2) {
   return `${fmt(n, digits)} ${ccy}`;
 }
 
+function updateOrderPxHint() {
+  const el = $("order-px-hint");
+  if (!el) return;
+  const type = $("order-form")?.ord_type?.value || "limit";
+  const limitLike = orderIsLimitLike(type);
+  if (!limitLike) {
+    el.textContent = "";
+    el.className = "input-hint-brl";
+    return;
+  }
+  const ctx = orderContext;
+  const last = Number(ctx?.last || 0);
+  const px = orderPrice();
+  const quote = ctx?.quote || orderInst().split("-")[1] || "USDT";
+  const parts = [];
+  let tone = "";
+  if (last > 0) parts.push(`último ${fmtPx(last)}`);
+  if (px > 0 && last > 0) {
+    const pct = ((px - last) / last) * 100;
+    const abs = Math.abs(pct);
+    if (abs < 0.005) {
+      parts.push("igual ao mercado");
+    } else {
+      const above = pct > 0;
+      parts.push(`${fmt(abs, 2)}% ${above ? "acima" : "abaixo"} do mercado`);
+      const better = (orderSide === "buy" && !above) || (orderSide === "sell" && above);
+      tone = better ? "up" : "down";
+    }
+  } else if (!px) {
+    parts.push(last > 0 ? "digite o preço limite" : "");
+  }
+  if (px > 0) {
+    const fx = orderNotionalFx(px, quote);
+    const line = formatUsdBrl(fx.usd, fx.brl);
+    if (line) parts.push(`1 token ≈ ${line}`);
+  }
+  el.className = `input-hint-brl${tone ? ` ${tone}` : ""}`;
+  el.textContent = parts.filter(Boolean).join(" · ");
+}
+
 function updateOrderEstimate() {
   const el = $("order-estimate");
   const totalEl = $("order-total-value");
   const totalWrap = $("order-total-wrap");
+  const szBrlEl = $("order-sz-brl");
   const type = $("order-form")?.ord_type?.value || "limit";
   const limitLike = orderIsLimitLike(type);
   if (totalWrap) totalWrap.hidden = !limitLike;
-  if (!el && !totalEl) return;
-  if (!orderReady()) {
+  updateOrderPxHint();
+  if (!el && !totalEl && !szBrlEl) return;
+  const clearMoney = () => {
     if (el) el.textContent = "";
     if (totalEl) totalEl.textContent = "—";
+    if (szBrlEl) szBrlEl.textContent = "";
+  };
+  if (!orderReady()) {
+    clearMoney();
     return;
   }
   const ctx = orderContext;
   const quote = ctx?.quote || orderInst().split("-")[1] || "USDT";
+  const base = ctx?.base || orderInst().split("-")[0] || "TOKEN";
   const sz = Number($("order-form").sz.value);
-  if (!sz || sz <= 0) {
-    if (el) el.textContent = limitLike && orderPrice() <= 0 ? "Informe o preço para calcular o valor" : "";
-    if (totalEl) totalEl.textContent = "—";
-    return;
-  }
   const unit = orderSizeUnit();
   const px = orderPrice();
-  const base = ctx?.base || orderInst().split("-")[0] || "TOKEN";
+  const last = Number(ctx?.last || 0);
+
+  const paintFx = (amountQuote) => {
+    const fx = orderNotionalFx(amountQuote, quote);
+    const line = formatUsdBrl(fx.usd, fx.brl);
+    if (szBrlEl) szBrlEl.textContent = line ? `≈ ${line}` : "";
+    return line;
+  };
+
+  if (!sz || sz <= 0) {
+    if (el) {
+      el.textContent = limitLike && px <= 0 ? "Informe o preço e o valor para calcular" : "";
+    }
+    if (totalEl) totalEl.textContent = "—";
+    if (szBrlEl) szBrlEl.textContent = "";
+    return;
+  }
+
   const qtyBase = unit.kind === "quote" ? (px > 0 ? sz / px : 0) : sz;
   const totalQuote = unit.kind === "quote" ? sz : (px > 0 ? sz * px : 0);
+
   if (limitLike && (!px || px <= 0)) {
-    if (totalEl) totalEl.textContent = "—";
-    if (el) el.textContent = "Informe o preço para calcular o valor";
+    if (unit.kind === "quote") {
+      const fxLine = paintFx(sz);
+      if (totalEl) {
+        totalEl.innerHTML = fxLine
+          ? `${fmt(sz, 2)} ${quote}<small>${escHtml(fxLine)}</small>`
+          : `${fmt(sz, 2)} ${quote}`;
+      }
+      if (el) el.textContent = "Informe o preço limite para a quantidade e o % vs o mercado";
+    } else {
+      if (totalEl) totalEl.textContent = "—";
+      if (szBrlEl) szBrlEl.textContent = "";
+      if (el) el.textContent = "Informe o preço para calcular o valor";
+    }
     return;
   }
+
   if (!totalQuote) {
-    if (el) el.textContent = "";
-    if (totalEl) totalEl.textContent = "—";
+    clearMoney();
     return;
   }
+
   const minErr = belowMinText(qtyBase, unit.kind === "quote" ? sz : null);
-  if (totalEl) totalEl.textContent = `${fmt(totalQuote, 2)} ${quote}`;
-  // Conversão alternativa abaixo do campo sz
-  const szBrlEl = $("order-sz-brl");
-  if (szBrlEl) {
-    const altSz = unit.kind === "quote" ? toAltCcy(sz, quote) : toAltCcy(totalQuote, quote);
-    szBrlEl.textContent = altSz && altSz.value > 0 ? `≈ ${altSz.symbol} ${fmt(altSz.value, 2)}` : "";
+  const fxLine = paintFx(totalQuote);
+  if (totalEl) {
+    totalEl.innerHTML = fxLine
+      ? `${fmt(totalQuote, 2)} ${quote}<small>${escHtml(fxLine)}</small>`
+      : `${fmt(totalQuote, 2)} ${quote}`;
   }
   if (minErr) {
     if (el) el.innerHTML = `<span class="err">${minErr}</span>`;
     return;
   }
   if (!el) return;
-  // Ordem válida — limpa erro antigo no flash
   const msg = $("order-msg");
   if (msg && msg.classList.contains("err")) flash("order-msg", "", true);
-  const altEst = toAltCcy(totalQuote, quote);
-  const altEstTxt = altEst ? ` · ${altEst.symbol} ${fmt(altEst.value, 2)}` : "";
-  el.innerHTML = `≈ ${fmtQty(qtyBase)} ${base} · ${fmt(totalQuote, 2)} ${quote}${altEstTxt}`;
+  const bits = [`≈ ${fmtQty(qtyBase)} ${base}`, `${fmt(totalQuote, 2)} ${quote}`];
+  if (fxLine) bits.push(fxLine);
+  if (limitLike && px > 0 && last > 0) {
+    const pct = ((px - last) / last) * 100;
+    const abs = Math.abs(pct);
+    if (abs < 0.005) bits.push("preço = mercado");
+    else bits.push(`${fmt(abs, 2)}% ${pct > 0 ? "acima" : "abaixo"} do mercado`);
+  }
+  el.innerHTML = bits.join(" · ");
 }
 
 function sumByQuote(orders, key) {
@@ -5672,6 +5775,7 @@ function updateOrderMeta() {
   if (limHint) lines.push(limHint);
   const el = $("order-meta");
   el.innerHTML = lines.map(l => `<span>${l}</span>`).join("<br>");
+  updateOrderEstimate();
 }
 
 function setOrderSide(side) {

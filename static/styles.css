@@ -2423,17 +2423,27 @@ td.muted { color: var(--muted); }
   margin-top: 4px;
   line-height: 1.2;
 }
+.input-hint-brl.up { color: var(--up); }
+.input-hint-brl.down { color: var(--down); }
 .order-total-out {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
   min-height: 42px;
-  line-height: 42px;
-  padding: 0 12px;
+  line-height: 1.25;
+  padding: 8px 12px;
   border: 1px solid var(--line);
   border-radius: 9px;
   background: var(--surface-2);
   font-size: 15px;
   font-weight: 700;
   color: var(--text);
+}
+.order-total-out small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
 }
 .order-total-wrap:has(.order-total-out:not(:empty)) .order-total-out:not(:empty) { background: var(--surface); }
 #order-meta { margin-top: 4px; line-height: 1.6; }
