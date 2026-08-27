@@ -152,7 +152,12 @@ function clearHistClientCache() {
 restoreHistClientCache();
 let walletShowDust = localStorage.getItem("okx_wallet_show_dust") === "1";
 const WALLET_DUST_MIN = 0.001;
-let walletSort = { key: "total_bal", dir: "desc" };
+const WALLET_SORT_DEFAULT = { key: "eq_usd", dir: "desc" };
+let walletSort = { ...WALLET_SORT_DEFAULT };
+
+function resetWalletSort() {
+  walletSort = { key: WALLET_SORT_DEFAULT.key, dir: WALLET_SORT_DEFAULT.dir };
+}
 let lastWallet = null;
 let lastWalletTs = 0;
 let usdtBrlRate = null;
@@ -717,7 +722,11 @@ function showPage(id) {
   if ($("run-label")) $("run-label").hidden = false;
   if ($("mode-label") && lastStatus?.keys_configured) $("mode-label").hidden = false;
   if (id === "overview") refresh({ trades: true });
-  if (id === "wallet") loadWallet();
+  if (id === "wallet") {
+    resetWalletSort();
+    if (lastWallet) renderWallet(lastWallet);
+    loadWallet();
+  }
   if (id === "config") loadConfig();
   if (id === "orders") loadOrders();
   if (id === "tokens") loadTokens();
