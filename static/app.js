@@ -5580,31 +5580,24 @@ function updateOrderPxHint() {
   const ctx = orderContext;
   const last = Number(ctx?.last || 0);
   const px = orderPrice();
-  const quote = ctx?.quote || orderInst().split("-")[1] || "USDT";
-  const parts = [];
   let tone = "";
-  if (last > 0) parts.push(`último ${fmtPx(last)}`);
+  let text = "";
   if (px > 0 && last > 0) {
     const pct = ((px - last) / last) * 100;
     const abs = Math.abs(pct);
     if (abs < 0.005) {
-      parts.push("igual ao mercado");
+      text = "igual ao mercado";
     } else {
       const above = pct > 0;
-      parts.push(`${fmt(abs, 2)}% ${above ? "acima" : "abaixo"} do mercado`);
+      text = `${fmt(abs, 2)}% ${above ? "acima" : "abaixo"} do mercado`;
       const better = (orderSide === "buy" && !above) || (orderSide === "sell" && above);
       tone = better ? "up" : "down";
     }
-  } else if (!px) {
-    parts.push(last > 0 ? "digite o preço limite" : "");
-  }
-  if (px > 0) {
-    const fx = orderNotionalFx(px, quote);
-    const line = formatUsdBrl(fx.usd, fx.brl);
-    if (line) parts.push(`1 token ≈ ${line}`);
+  } else if (last > 0) {
+    text = `último ${fmtPx(last)}`;
   }
   el.className = `input-hint-brl${tone ? ` ${tone}` : ""}`;
-  el.textContent = parts.filter(Boolean).join(" · ");
+  el.textContent = text;
 }
 
 function updateOrderEstimate() {
@@ -5689,13 +5682,11 @@ function updateOrderEstimate() {
   if (!el) return;
   const msg = $("order-msg");
   if (msg && msg.classList.contains("err")) flash("order-msg", "", true);
-  const bits = [`≈ ${fmtQty(qtyBase)} ${base}`, `${fmt(totalQuote, 2)} ${quote}`];
-  if (fxLine) bits.push(fxLine);
+  const bits = [`≈ ${fmtQty(qtyBase)} ${base}`];
   if (limitLike && px > 0 && last > 0) {
     const pct = ((px - last) / last) * 100;
     const abs = Math.abs(pct);
-    if (abs < 0.005) bits.push("preço = mercado");
-    else bits.push(`${fmt(abs, 2)}% ${pct > 0 ? "acima" : "abaixo"} do mercado`);
+    if (abs >= 0.005) bits.push(`${fmt(abs, 2)}% ${pct > 0 ? "acima" : "abaixo"}`);
   }
   el.innerHTML = bits.join(" · ");
 }

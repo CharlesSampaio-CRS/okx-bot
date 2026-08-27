@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=okx-order-fx1" />
+  <link rel="stylesheet" href="/static/styles.css?v=okx-order-fx2" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -301,18 +301,18 @@
                   <option value="fok">FOK</option>
                 </select>
               </label>
+              <label id="order-tgt-wrap">Informar em
+                <select name="tgt_ccy">
+                  <option value="quote_ccy">Valor do par</option>
+                  <option value="base_ccy">Token</option>
+                </select>
+              </label>
               <label id="order-px-wrap">Preço
                 <input name="px" type="number" step="any" min="0" />
                 <small id="order-px-hint" class="input-hint-brl"></small>
               </label>
               <label id="order-total-wrap" class="order-total-wrap">Valor da ordem
                 <output id="order-total-value" class="order-total-out">—</output>
-              </label>
-              <label id="order-tgt-wrap">Informar em
-                <select name="tgt_ccy">
-                  <option value="quote_ccy">Valor do par</option>
-                  <option value="base_ccy">Token</option>
-                </select>
               </label>
               <label class="full"><span id="order-sz-label">Valor</span> <small id="order-sz-unit"></small>
                 <input name="sz" type="number" step="any" min="0" required placeholder="Ex. 49" />
@@ -1622,6 +1622,6 @@
     </div>
   </div>
   <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
-  <script src="/static/app.js?v=okx-order-fx1"></script>
+  <script src="/static/app.js?v=okx-order-fx2"></script>
 </body>
 </html>
